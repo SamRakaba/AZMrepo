@@ -1247,7 +1247,7 @@ DBServer04,MongoDB,5.0.6,manager.contoso.com
 
 After processing the test files above:
 
-**Unique Applications (6 expected - removed updates, redistributables, and duplicates):**
+**Unique Applications (4 expected - removed updates, redistributables, and duplicates):**
 - Microsoft SQL Server 2019
 - Oracle Database
 - MySQL Server
