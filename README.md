@@ -8,6 +8,19 @@ This repository provides comprehensive documentation and resources for building 
 
 ## Documentation
 
+### 📊 [Azure Migrate CSV Processing Agents Guide](AZURE_MIGRATE_AGENTS_GUIDE.md)
+
+**NEW!** Complete guide for building no-code Copilot Studio agents to process Azure Migrate export files:
+- File upload handling and validation
+- Application inventory consolidation (removing duplicates and noise)
+- SQL Server inventory processing
+- Database inventory processing
+- Automated report generation with download links
+- Agent orchestration with Power Automate
+- Testing and troubleshooting
+
+**Start here** if you want to build agents for Azure Migrate data processing.
+
 ### 📚 [Copilot Studio Agent Guide](COPILOT_STUDIO_GUIDE.md)
 
 Complete step-by-step instructions for building a Microsoft Copilot Studio agent, including:
@@ -49,6 +62,10 @@ Project-specific instructions for using GitHub Copilot effectively within this r
 ## Use Cases
 
 This repository supports building agents for:
+- **Azure Migrate Processing**: Process and consolidate Azure Migrate CSV exports
+- **Application Inventory**: Consolidate application inventories with duplicate removal
+- **SQL Server Assessment**: Process SQL Server inventory for migration assessment
+- **Database Consolidation**: Aggregate database inventory across environments
 - **Azure Resource Management**: List, monitor, and manage Azure resources
 - **Cost Analysis**: Generate cost reports and analyze spending
 - **Resource Consolidation**: Aggregate resource data across subscriptions
