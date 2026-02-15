@@ -134,27 +134,34 @@ The Azure Migrate export files contain the following sheets:
 
 ### Required Access
 
-Before building these agents, ensure you have:
+**For IT Admins / Developers** (one-time setup):
 
 1. **Microsoft 365 License** with:
    - Microsoft Copilot Studio access
    - Power Automate access
    - Microsoft Excel Online
 
-2. **Temporary Storage** (choose one option):
-   - **Option A: Azure Blob Storage (Recommended)** - Users do NOT need SharePoint/OneDrive access
+2. **Temporary Storage Setup** (choose one option):
+   - **Option A: Azure Blob Storage (Recommended)** - Create ONE shared storage account for all users
    - **Option B: SharePoint/OneDrive** - Requires users have SharePoint or OneDrive access
 
-3. **Permissions**:
+3. **Permissions for Setup**:
    - Copilot Studio environment creator/maker
    - Power Automate flow creator
-   - Azure Storage Blob Data Contributor (for Option A)
+   - Azure Storage Blob Data Contributor (for Option A - admin only)
    - SharePoint site contributor (for Option B)
 
 4. **Environment Setup**:
-   - Azure Storage Account with a container (for Option A)
+   - Azure Storage Account with containers (for Option A)
    - A dedicated SharePoint site or OneDrive folder (for Option B)
    - Azure AD application (optional, for advanced authentication)
+
+**For End Users** (using the agent):
+
+| Storage Option | What Users Need |
+|----------------|-----------------|
+| **Option A: Azure Blob Storage** | ✅ NO Azure access needed - users only interact through Copilot chat |
+| **Option B: SharePoint** | ⚠️ Users need SharePoint/OneDrive access to download reports |
 
 ### Option A: Prepare Azure Blob Storage (Recommended - No SharePoint/OneDrive Required)
 
@@ -163,6 +170,41 @@ Azure Blob Storage provides temporary file storage without requiring users to ha
 - You need isolated temporary storage for processing
 - You want to avoid SharePoint storage quota constraints
 - You need programmatic file retention policies
+
+#### Access Model - Who Needs What Access?
+
+> **Important**: End users do NOT need direct access to Azure Blob Storage. The organization creates ONE shared storage account, and the Power Automate flows handle all storage operations using service credentials.
+
+| Role | Access Required | What They Do |
+|------|-----------------|--------------|
+| **IT Admin / Developer** | Azure Storage Blob Data Contributor | Creates the storage account ONCE, configures containers, sets up Power Automate connections |
+| **End Users** | NO Azure storage access needed | Simply interact with the Copilot agent - upload files through chat, receive download links |
+| **Power Automate (Service)** | Storage connection with SAS token or Managed Identity | Automatically reads/writes files on behalf of users |
+
+**How It Works:**
+1. **One-time setup**: An IT admin or developer creates a single Azure Storage Account for the organization
+2. **Shared storage**: All users share this storage account - files are isolated by session IDs
+3. **No user credentials needed**: Users never see or access the storage directly
+4. **Secure access**: Power Automate flows use pre-configured connections (SAS tokens or Managed Identity) to access storage
+5. **Automatic cleanup**: Lifecycle management policies automatically delete temporary files after 7 days
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+│   End User      │────▶│  Copilot Agent   │────▶│  Power Automate     │
+│ (No Azure access│     │  (Chat interface)│     │  (Service account)  │
+│    needed)      │     │                  │     │                     │
+└─────────────────┘     └──────────────────┘     └──────────┬──────────┘
+                                                            │
+                                                            ▼
+                                               ┌─────────────────────┐
+                                               │  Azure Blob Storage │
+                                               │  (Shared by all     │
+                                               │   users, isolated   │
+                                               │   by session ID)    │
+                                               └─────────────────────┘
+```
+
+#### Setup Instructions (For IT Admin / Developer)
 
 1. **Create an Azure Storage Account**:
    ```
