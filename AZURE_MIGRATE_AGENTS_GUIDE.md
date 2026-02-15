@@ -310,9 +310,13 @@ If you prefer to use SharePoint for storage (requires users have SharePoint acce
 ## Agent 1: File Upload Handler
 
 ### Purpose
-This agent handles the initial user interaction, accepts CSV file uploads, validates them, stores files in temporary storage (Azure Blob Storage recommended), and triggers the processing workflow.
+This agent is the **starting point of the Azure Migrate processing flow**. It provides users with instructions to upload Azure Migrate extracted CSV files, accepts the file uploads, validates them, stores files in temporary storage (Azure Blob Storage recommended), and triggers the processing workflow.
 
-> **Important**: This agent is designed to work with Azure Blob Storage as temporary storage, which does NOT require users to have SharePoint or OneDrive access. This ensures that users can upload and process files even if they don't have Microsoft 365 storage licenses.
+> **Important**: This agent is:
+> - **NOT conversational** - It follows a structured flow without general chat capabilities
+> - **Triggered on file(s) upload** - The main flow activates when users upload files
+> - **The start of the processing flow** - It initiates the entire Azure Migrate CSV processing pipeline
+> - Designed to work with Azure Blob Storage as temporary storage, which does NOT require users to have SharePoint or OneDrive access
 
 ### Storage Options
 
@@ -333,9 +337,53 @@ This agent handles the initial user interaction, accepts CSV file uploads, valid
    ```
 4. Click **"Create"**
 
+### Step 1.1: Configure Agent Settings
+
+After creating the agent, configure the following settings to make it non-conversational and file-upload triggered:
+
+1. Go to **Settings** → **Generative AI**
+2. Configure orchestration settings:
+   ```
+   Orchestration: Classic (not Generative)
+   ```
+   > **Note**: This ensures the agent follows a structured flow rather than having open-ended conversations.
+
+3. Go to **Settings** → **Agent details**
+4. Add **Agent Instructions** (paste the following):
+   ```
+   You are the Azure Migrate File Handler agent. Your role is to:
+
+   1. GUIDE users to upload Azure Migrate extracted CSV files
+   2. ACCEPT file uploads (CSV or Excel format) containing Azure Migrate export data
+   3. VALIDATE uploaded files have the expected format
+   4. TRIGGER the processing workflow upon successful upload
+
+   IMPORTANT BEHAVIOR:
+   - You are NOT a general-purpose conversational agent
+   - You should ONLY handle Azure Migrate CSV file upload requests
+   - Always start by providing clear instructions for file upload
+   - Do NOT engage in off-topic conversations
+   - If users ask unrelated questions, redirect them to upload their files
+
+   EXPECTED FILE FORMATS:
+   - CSV files exported from Azure Migrate
+   - Excel files (.xlsx) with sheets: ApplicationInventory, SQL Server, Database
+
+   WORKFLOW:
+   1. Greet the user and explain the purpose
+   2. Provide instructions for uploading Azure Migrate CSV files
+   3. Wait for file upload
+   4. Validate and process uploaded files
+   5. Confirm processing has started
+   ```
+
+5. Click **Save**
+
 ### Step 2: Configure Topics
 
-#### Topic 1: Greeting and Instructions
+#### Topic 1: Greeting and File Upload Instructions (Start of Flow)
+
+> **Note**: This topic is the entry point for the agent. Since the agent is triggered on file upload, this topic provides initial instructions and immediately prompts for file upload.
 
 1. Go to **Topics** → Click **"+ Add a topic"** → **"From blank"**
 2. Configure the topic:
@@ -359,19 +407,30 @@ This agent handles the initial user interaction, accepts CSV file uploads, valid
 
 4. **Build the Conversation Flow**:
 
-   **Node 1: Message**
+   **Node 1: Message (Provide Upload Instructions)**
    ```
-   Welcome! I'm your Azure Migrate CSV Processor. I can help you:
+   Welcome! I'm your Azure Migrate CSV Processor.
 
-   📁 Upload Azure Migrate export CSV files
-   📊 Consolidate application inventories
-   💾 Process SQL Server and database inventories
-   📥 Generate a downloadable consolidated report
+   📋 **Instructions for Uploading Azure Migrate CSV Files:**
 
-   Let's get started! Please upload your Azure Migrate CSV file(s).
+   1. Export your data from Azure Migrate portal
+   2. Ensure your files contain the required sheets:
+      • ApplicationInventory (Machine names, Applications, Versions)
+      • SQL Server (Instance names, Editions, Versions)
+      • Database (Database types, Versions)
+   3. Files can be in CSV or Excel (.xlsx) format
+   4. You can upload one or multiple files at once
+
+   📁 **What I'll do with your files:**
+   • Parse and validate the data
+   • Remove duplicates and noise
+   • Consolidate application and database inventories
+   • Generate a downloadable report
+
+   ⬆️ **Please upload your Azure Migrate CSV file(s) now to begin processing.**
    ```
 
-   **Node 2: Question (File Upload)**
+   **Node 2: Question (File Upload Trigger)**
    ```
    Question: Please upload your Azure Migrate export file(s). You can upload one or more CSV/Excel files.
    Identify: File upload
