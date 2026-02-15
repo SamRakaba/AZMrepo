@@ -82,7 +82,7 @@ The Azure Migrate export files contain the following sheets:
 │                     AGENT 1: File Upload Handler                            │
 │  • Accepts CSV file uploads                                                 │
 │  • Validates file format                                                    │
-│  • Stores files in SharePoint/OneDrive                                      │
+│  • Stores files in temporary storage (Azure Blob Storage recommended)       │
 │  • Triggers processing workflow                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
@@ -102,7 +102,7 @@ The Azure Migrate export files contain the following sheets:
 │                     AGENT 5: Report Generator                               │
 │  • Combine processed data                                                   │
 │  • Create multi-sheet Excel file                                            │
-│  • Store in SharePoint/OneDrive                                             │
+│  • Store in temporary storage (Azure Blob Storage or SharePoint/OneDrive)   │
 │  • Generate download link                                                   │
 │  • Notify user with download URL                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -121,6 +121,7 @@ The Azure Migrate export files contain the following sheets:
 | Component | Purpose | Technology |
 |-----------|---------|------------|
 | File Upload Handler | Accept and validate CSV files | Copilot Studio + Power Automate |
+| Temporary Storage | Store uploaded files temporarily | Azure Blob Storage (recommended) or SharePoint |
 | App Inventory Processor | Consolidate applications | Power Automate + Excel Connector |
 | SQL Server Processor | Consolidate SQL instances | Power Automate + Excel Connector |
 | Database Processor | Consolidate other databases | Power Automate + Excel Connector |
@@ -133,24 +134,150 @@ The Azure Migrate export files contain the following sheets:
 
 ### Required Access
 
-Before building these agents, ensure you have:
+**For IT Admins / Developers** (one-time setup):
 
 1. **Microsoft 365 License** with:
    - Microsoft Copilot Studio access
    - Power Automate access
-   - SharePoint or OneDrive access
    - Microsoft Excel Online
 
-2. **Permissions**:
+2. **Temporary Storage Setup** (choose one option):
+   - **Option A: Azure Blob Storage (Recommended)** - Create ONE shared storage account for all users
+   - **Option B: SharePoint/OneDrive** - Requires users have SharePoint or OneDrive access
+
+3. **Permissions for Setup**:
    - Copilot Studio environment creator/maker
    - Power Automate flow creator
-   - SharePoint site contributor (for file storage)
+   - Azure Storage Blob Data Contributor (for Option A - admin only)
+   - SharePoint site contributor (for Option B)
 
-3. **Environment Setup**:
-   - A dedicated SharePoint site or OneDrive folder for file storage
+4. **Environment Setup**:
+   - Azure Storage Account with containers (for Option A)
+   - A dedicated SharePoint site or OneDrive folder (for Option B)
    - Azure AD application (optional, for advanced authentication)
 
-### Prepare SharePoint Storage
+**For End Users** (using the agent):
+
+| Storage Option | What Users Need |
+|----------------|-----------------|
+| **Option A: Azure Blob Storage** | ✅ NO Azure access needed - users only interact through Copilot chat |
+| **Option B: SharePoint** | ⚠️ Users need SharePoint/OneDrive access to download reports |
+
+### Option A: Prepare Azure Blob Storage (Recommended - No SharePoint/OneDrive Required)
+
+Azure Blob Storage provides temporary file storage without requiring users to have SharePoint or OneDrive access. This is the recommended approach for scenarios where:
+- Users don't have SharePoint/OneDrive licenses
+- You need isolated temporary storage for processing
+- You want to avoid SharePoint storage quota constraints
+- You need programmatic file retention policies
+
+#### Access Model - Who Needs What Access?
+
+> **Important**: End users do NOT need direct access to Azure Blob Storage. The organization creates ONE shared storage account, and the Power Automate flows handle all storage operations using service credentials.
+
+| Role | Access Required | What They Do |
+|------|-----------------|--------------|
+| **IT Admin / Developer** | Azure Storage Blob Data Contributor | Creates the storage account ONCE, configures containers, sets up Power Automate connections |
+| **End Users** | NO Azure storage access needed | Simply interact with the Copilot agent - upload files through chat, receive download links |
+| **Power Automate (Service)** | Storage connection with SAS token or Managed Identity | Automatically reads/writes files on behalf of users |
+
+**How It Works:**
+1. **One-time setup**: An IT admin or developer creates a single Azure Storage Account for the organization
+2. **Shared storage**: All users share this storage account - files are isolated by session IDs
+3. **No user credentials needed**: Users never see or access the storage directly
+4. **Secure access**: Power Automate flows use pre-configured connections (SAS tokens or Managed Identity) to access storage
+5. **Automatic cleanup**: Lifecycle management policies automatically delete temporary files after 7 days
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+│   End User      │────▶│  Copilot Agent   │────▶│  Power Automate     │
+│ (No Azure access│     │  (Chat interface)│     │  (Service account)  │
+│    needed)      │     │                  │     │                     │
+└─────────────────┘     └──────────────────┘     └──────────┬──────────┘
+                                                            │
+                                                            ▼
+                                               ┌─────────────────────┐
+                                               │  Azure Blob Storage │
+                                               │  (Shared by all     │
+                                               │   users, isolated   │
+                                               │   by session ID)    │
+                                               └─────────────────────┘
+```
+
+#### Setup Instructions (For IT Admin / Developer)
+
+1. **Create an Azure Storage Account**:
+   ```
+   Resource Group: rg-azure-migrate-processing
+   Storage Account Name: stazuremigrateproc<unique-suffix> (must be globally unique, e.g., stazuremigrateproc123)
+   Region: (Select your preferred region)
+   Performance: Standard
+   Redundancy: LRS (Locally-redundant storage) for temporary files
+   ```
+
+2. **Create Blob Containers**:
+   ```
+   Container: uploads
+   Public access level: Private (no anonymous access)
+   
+   Container: processing
+   Public access level: Private (no anonymous access)
+   
+   Container: reports
+   Public access level: Private (no anonymous access)
+   ```
+
+3. **Set Up Folder Structure (Virtual Directories)**:
+   ```
+   uploads/
+       └── {SessionID}/
+           └── raw files here
+   processing/
+       └── {SessionID}/
+           ├── applications_consolidated.json
+           ├── sql_consolidated.json
+           └── databases_consolidated.json
+   reports/
+       └── {SessionID}/
+           └── ConsolidatedReport_{timestamp}.xlsx
+   ```
+
+4. **Configure Lifecycle Management (Auto-cleanup)**:
+   Create a lifecycle management rule to automatically delete temporary files:
+   ```json
+   {
+     "rules": [
+       {
+         "name": "DeleteTempFilesAfter7Days",
+         "enabled": true,
+         "type": "Lifecycle",
+         "definition": {
+           "filters": {
+             "blobTypes": ["blockBlob"],
+             "prefixMatch": ["uploads/", "processing/"]
+           },
+           "actions": {
+             "baseBlob": {
+               "delete": {
+                 "daysAfterModificationGreaterThan": 7
+               }
+             }
+           }
+         }
+       }
+     ]
+   }
+   ```
+
+5. **Generate SAS Token or Configure Connection** for Power Automate:
+   - Navigate to your Storage Account → Shared access signature
+   - Configure permissions: Read, Write, Delete, List, Add, Create
+   - Set expiry date appropriately
+   - Generate SAS token for use in Power Automate
+
+### Option B: Prepare SharePoint Storage (Alternative)
+
+If you prefer to use SharePoint for storage (requires users have SharePoint access):
 
 1. **Create a SharePoint Site** (or use existing):
    ```
@@ -183,7 +310,16 @@ Before building these agents, ensure you have:
 ## Agent 1: File Upload Handler
 
 ### Purpose
-This agent handles the initial user interaction, accepts CSV file uploads, validates them, and triggers the processing workflow.
+This agent handles the initial user interaction, accepts CSV file uploads, validates them, stores files in temporary storage (Azure Blob Storage recommended), and triggers the processing workflow.
+
+> **Important**: This agent is designed to work with Azure Blob Storage as temporary storage, which does NOT require users to have SharePoint or OneDrive access. This ensures that users can upload and process files even if they don't have Microsoft 365 storage licenses.
+
+### Storage Options
+
+| Option | User Requirements | Best For |
+|--------|-------------------|----------|
+| **Azure Blob Storage (Recommended)** | No SharePoint/OneDrive access required | Organizations where users don't have SharePoint access, or need isolated temporary storage |
+| **SharePoint/OneDrive** | Users must have SharePoint/OneDrive access | Organizations already using SharePoint with appropriate user licenses |
 
 ### Step 1: Create the Agent
 
@@ -364,9 +500,51 @@ This agent handles the initial user interaction, accepts CSV file uploads, valid
 
 ### Step 3: Configure the File Upload Action
 
+The file upload action stores uploaded files in temporary storage. Choose the appropriate configuration based on your storage choice:
+
+#### Option A: Azure Blob Storage (Recommended - No SharePoint/OneDrive Required)
+
 1. Go to **Actions** → **"+ Add an action"**
 2. Select **"Create a new flow"**
-3. This opens Power Automate - configure the flow (detailed in [Power Automate Flows](#power-automate-flows) section)
+3. In Power Automate, configure the flow for Azure Blob Storage:
+
+**Flow Configuration:**
+```
+Trigger: When Power Virtual Agents calls a flow
+
+Actions:
+1. Compose - Generate Session ID
+   Expression: guid()
+
+2. Create blob (V2) - Azure Blob Storage
+   Storage Account: Your Azure Storage Account
+   Container: uploads
+   Blob name: @{outputs('Generate_Session_ID')}/@{item()?['name']}
+   Blob content: @{item()?['contentBytes']}
+
+3. HTTP - Call Orchestrator Flow
+   (Detailed in Power Automate Flows section)
+
+4. Return value(s) to Power Virtual Agents:
+   - sessionId: @{outputs('Generate_Session_ID')}
+   - status: "Processing"
+   - message: "Files uploaded successfully. Processing has started."
+```
+
+**Benefits of Azure Blob Storage:**
+- Users do NOT need SharePoint or OneDrive access
+- Automatic cleanup via lifecycle management policies
+- Cost-effective for temporary file storage
+- Better suited for large file uploads
+- Supports programmatic access via SAS tokens
+
+#### Option B: SharePoint Storage (Alternative)
+
+1. Go to **Actions** → **"+ Add an action"**
+2. Select **"Create a new flow"**
+3. This opens Power Automate - configure the flow for SharePoint (detailed in [Power Automate Flows](#power-automate-flows) section)
+
+> **Note**: This option requires users to have SharePoint or OneDrive access.
 
 ### Step 4: Test the Upload Agent
 
@@ -1020,21 +1198,101 @@ END
 
 ### Summary of Required Flows
 
-| Flow Name | Type | Purpose |
-|-----------|------|---------|
-| `Azure Migrate Processing Orchestrator` | Parent/Main | Coordinates all processing |
-| `Process Application Inventory` | Child | Consolidates applications |
-| `Process SQL Server Inventory` | Child | Consolidates SQL instances |
-| `Process Database Inventory` | Child | Consolidates databases |
-| `Generate Consolidated Report` | Child | Creates Excel and download link |
-| `Get Processing Status` | Utility | Checks processing status |
+| Flow Name | Type | Purpose | Storage Option |
+|-----------|------|---------|----------------|
+| `Azure Migrate Processing Orchestrator` | Parent/Main | Coordinates all processing | Both |
+| `Handle File Upload (Blob Storage)` | Handler | Saves files to Azure Blob Storage | Option A |
+| `Handle File Upload (SharePoint)` | Handler | Saves files to SharePoint | Option B |
+| `Process Application Inventory` | Child | Consolidates applications | Both |
+| `Process SQL Server Inventory` | Child | Consolidates SQL instances | Both |
+| `Process Database Inventory` | Child | Consolidates databases | Both |
+| `Generate Consolidated Report` | Child | Creates Excel and download link | Both |
+| `Get Processing Status` | Utility | Checks processing status | Both |
 
-### Flow 1: File Upload Handler Action
+### Flow 1A: File Upload Handler - Azure Blob Storage (Recommended)
 
-This flow is called directly from the Copilot Studio agent when files are uploaded.
+This flow stores uploaded files in Azure Blob Storage, which does NOT require users to have SharePoint or OneDrive access. This is the recommended approach for temporary file storage.
 
 ```
-Name: Handle File Upload
+Name: Handle File Upload (Blob Storage)
+Trigger: Power Virtual Agents (Copilot Studio)
+
+Steps:
+1. Parse file upload data from Copilot
+2. Generate unique session ID
+3. Save uploaded files to Azure Blob Storage container
+4. Call Orchestrator flow with blob URLs
+5. Return status to Copilot agent
+```
+
+**Flow Definition - Azure Blob Storage:**
+
+```
+Trigger: When Power Virtual Agents calls a flow
+
+Actions:
+1. Compose - Generate Session ID
+   Expression: guid()
+
+2. Initialize variable - uploadedBlobUrls
+   Name: uploadedBlobUrls
+   Type: Array
+   Value: []
+
+3. Apply to each uploaded file:
+   
+   a. Create blob (V2) - Azure Blob Storage
+      Connection: Your Azure Blob Storage connection
+      Storage account name: <your-storage-account-name>
+      Container name: uploads
+      Blob name: @{outputs('Generate_Session_ID')}/@{item()?['name']}
+      Blob content: @{item()?['contentBytes']}
+   
+   b. Append to array variable
+      Name: uploadedBlobUrls
+      Value: @{body('Create_blob_(V2)')?['Path']}
+
+4. HTTP - Call Orchestrator Flow
+   Method: POST
+   URI: (Orchestrator flow HTTP trigger URL)
+   Headers:
+     Content-Type: application/json
+   Body: {
+     "fileUrls": @{variables('uploadedBlobUrls')},
+     "sessionId": "@{outputs('Generate_Session_ID')}",
+     "userEmail": "@{triggerBody()?['user']?['email']}",
+     "userId": "@{triggerBody()?['user']?['id']}",
+     "storageType": "AzureBlob"
+   }
+
+5. Return value(s) to Power Virtual Agents:
+   - sessionId: @{outputs('Generate_Session_ID')}
+   - status: "Processing"
+   - message: "Files uploaded successfully to temporary storage. Processing has started."
+```
+
+**Azure Blob Storage Connection Setup:**
+1. In Power Automate, add a new connection for **Azure Blob Storage**
+2. Choose authentication method:
+   - **Access Key**: Use storage account access key
+   - **SAS Token**: Use shared access signature for limited access
+   - **Azure AD**: Use Azure Active Directory for managed identity
+3. Test the connection before saving
+
+**Benefits of Azure Blob Storage for Temporary Files:**
+- ✅ Users do NOT need SharePoint/OneDrive licenses or access
+- ✅ Automatic cleanup via lifecycle management policies
+- ✅ Cost-effective (pay only for storage used)
+- ✅ Better performance for large file uploads
+- ✅ Programmatic SAS token generation for secure, temporary access
+- ✅ No impact on SharePoint storage quotas
+
+### Flow 1B: File Upload Handler - SharePoint (Alternative)
+
+This flow stores uploaded files in SharePoint. Use this only if users have SharePoint access and you prefer SharePoint storage.
+
+```
+Name: Handle File Upload (SharePoint)
 Trigger: Power Virtual Agents (Copilot Studio)
 
 Steps:
@@ -1045,7 +1303,7 @@ Steps:
 5. Return status to Copilot agent
 ```
 
-**Flow Definition:**
+**Flow Definition - SharePoint:**
 
 ```
 Trigger: When Power Virtual Agents calls a flow
@@ -1074,7 +1332,8 @@ Actions:
      "fileUrls": @{variables('uploadedFileUrls')},
      "sessionId": "@{outputs('Generate_Session_ID')}",
      "userEmail": "@{triggerBody()?['user']?['email']}",
-     "userId": "@{triggerBody()?['user']?['id']}"
+     "userId": "@{triggerBody()?['user']?['id']}",
+     "storageType": "SharePoint"
    }
 
 5. Return value(s) to Power Virtual Agents:
@@ -1085,8 +1344,111 @@ Actions:
 
 ### Flow 2: Get Processing Status
 
+This flow checks for completed reports and returns the download URL. Configure based on your storage choice:
+
+#### Option A: Get Processing Status - Azure Blob Storage
+
 ```
-Name: Get Processing Status
+Name: Get Processing Status (Blob Storage)
+Trigger: Power Virtual Agents
+
+Steps:
+1. Receive sessionId from Copilot
+2. List blobs in reports container for the session
+3. Generate SAS URL for download if report exists
+4. Return status and download URL
+```
+
+**Flow Definition - Azure Blob Storage:**
+
+```
+Trigger: When Power Virtual Agents calls a flow
+
+Actions:
+1. List blobs (V2) - Azure Blob Storage
+   Storage account: <your-storage-account-name>
+   Container: reports
+   Prefix: @{triggerBody()?['sessionId']}/
+
+2. Filter array - Find Excel files
+   From: @{body('List_blobs_(V2)')?['value']}
+   Condition: endsWith(item()?['Name'], '.xlsx')
+
+3. Condition: Report exists?
+   If: length(body('Filter_array')) > 0
+   
+   Yes:
+     4. Compose - Get first blob name
+        @{first(body('Filter_array'))?['Name']}
+     
+     5. Get blob content using path (V2) - Azure Blob Storage
+        Container: reports
+        Blob: @{outputs('Get_first_blob_name')}
+     
+     6. Compose - Generate SAS URL (or use Azure Function for SAS generation)
+        Expression: Create a SAS token with read permission, valid for 24 hours
+     
+     7. Return to Copilot:
+        - status: "Complete"
+        - downloadUrl: @{outputs('Generate_SAS_URL')}
+        - message: "Your report is ready for download!"
+   
+   No:
+     8. Return to Copilot:
+        - status: "Processing"
+        - downloadUrl: ""
+        - message: "Your files are still being processed. Please check back shortly."
+```
+
+**Generating SAS URLs for Download:**
+
+For Azure Blob Storage, you have several options to generate secure download URLs:
+
+1. **Azure Function (Recommended)**:
+   ```csharp
+   // Azure Function to generate SAS URL with input validation
+   [FunctionName("GenerateSasUrl")]
+   public static async Task<IActionResult> Run(
+       [HttpTrigger] HttpRequest req)
+   {
+       string sessionId = req.Query["sessionId"];
+       string fileName = req.Query["fileName"];
+       
+       // Validate inputs - prevent path traversal attacks
+       if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(fileName))
+           return new BadRequestObjectResult("sessionId and fileName are required");
+       
+       // Validate sessionId is a valid GUID format
+       if (!Guid.TryParse(sessionId, out _))
+           return new BadRequestObjectResult("Invalid sessionId format");
+       
+       // Validate fileName doesn't contain path traversal sequences
+       if (fileName.Contains("..") || fileName.Contains("/") || fileName.Contains("\\"))
+           return new BadRequestObjectResult("Invalid fileName");
+       
+       // Construct validated blob path
+       string blobPath = $"{sessionId}/{fileName}";
+       
+       var sasBuilder = new BlobSasBuilder
+       {
+           BlobContainerName = "reports",
+           BlobName = blobPath,
+           Resource = "b",
+           ExpiresOn = DateTimeOffset.UtcNow.AddHours(24)
+       };
+       // Read-only permission for download
+       sasBuilder.SetPermissions(BlobSasPermissions.Read);
+       // Generate and return SAS URL
+   }
+   ```
+
+2. **Pre-configured SAS Token**: Use a service SAS with read-only permissions
+3. **Logic App with Managed Identity**: Use Azure Logic Apps with managed identity for blob access
+
+#### Option B: Get Processing Status - SharePoint
+
+```
+Name: Get Processing Status (SharePoint)
 Trigger: Power Virtual Agents
 
 Steps:
@@ -1095,7 +1457,7 @@ Steps:
 3. Return status and download URL if complete
 ```
 
-**Flow Definition:**
+**Flow Definition - SharePoint:**
 
 ```
 Trigger: When Power Virtual Agents calls a flow
@@ -1276,7 +1638,14 @@ After processing the test files above:
 - "Unable to upload file" error
 - Timeout during upload
 
-**Solutions:**
+**Solutions for Azure Blob Storage (Option A):**
+1. Check file size (Azure Blob Storage supports up to 4.75 TB per blob)
+2. Verify Azure Blob Storage connection is configured correctly
+3. Check storage account firewall settings allow Power Automate access
+4. Ensure the container exists and has correct access permissions
+5. Verify SAS token hasn't expired (if using SAS authentication)
+
+**Solutions for SharePoint (Option B):**
 1. Check file size (SharePoint limit: 250MB)
 2. Verify SharePoint permissions
 3. Check Power Automate connection status
@@ -1336,11 +1705,53 @@ After processing the test files above:
 - 404 error on download
 - Access denied
 
-**Solutions:**
+**Solutions for Azure Blob Storage (Option A):**
+1. Verify SAS token is valid and not expired
+2. Check SAS token has read permissions
+3. Ensure the blob path is correct
+4. Verify storage account firewall allows access from user's network
+5. Check if the blob was deleted by lifecycle management policy
+
+**Solutions for SharePoint (Option B):**
 1. Verify sharing link settings
 2. Check link expiration
 3. Ensure user has SharePoint access
 4. Use organization-wide sharing if appropriate
+
+#### Issue 6: Azure Blob Storage Connection Fails
+
+**Symptoms:**
+- "Connection failed" error in Power Automate
+- "AuthorizationFailure" error
+- "ContainerNotFound" error
+
+**Solutions:**
+1. Verify storage account name is correct
+2. Check access key or SAS token is valid
+3. Ensure container name exists (containers are case-sensitive)
+4. Verify storage account firewall settings:
+   ```
+   Allow Azure services on the trusted services list to access this storage account: Enabled
+   ```
+5. Check if Managed Identity has appropriate RBAC roles:
+   - Storage Blob Data Contributor (for read/write)
+   - Storage Blob Data Reader (for read-only)
+
+#### Issue 7: SAS Token Issues
+
+**Symptoms:**
+- "AuthenticationFailed" error
+- Download links expire too quickly
+- "Signature did not match" error
+
+**Solutions:**
+1. Generate a new SAS token with correct permissions:
+   - For **uploads**: Use Read, Write, Create permissions
+   - For **download links**: Use Read permission only (principle of least privilege)
+2. Ensure the SAS token hasn't expired
+3. Check the SAS token is for the correct container/blob
+4. Verify the SAS token start time is in the past (account for clock skew)
+5. For download links, generate SAS tokens with appropriate expiry (e.g., 24 hours)
 
 ### Error Logging
 
@@ -1371,8 +1782,17 @@ Scope: Error Handling
 
 - [Microsoft Copilot Studio Documentation](https://learn.microsoft.com/en-us/microsoft-copilot-studio/)
 - [Power Automate Documentation](https://learn.microsoft.com/en-us/power-automate/)
+- [Azure Blob Storage Connector](https://learn.microsoft.com/en-us/connectors/azureblob/)
+- [Azure Blob Storage Documentation](https://learn.microsoft.com/en-us/azure/storage/blobs/)
 - [SharePoint Connectors](https://learn.microsoft.com/en-us/connectors/sharepointonline/)
 - [Excel Online Connector](https://learn.microsoft.com/en-us/connectors/excelonlinebusiness/)
+
+### Azure Blob Storage Resources
+
+- [Create a Storage Account](https://learn.microsoft.com/en-us/azure/storage/common/storage-account-create)
+- [Manage Blob Lifecycle](https://learn.microsoft.com/en-us/azure/storage/blobs/lifecycle-management-policy-configure)
+- [Create SAS Tokens](https://learn.microsoft.com/en-us/azure/storage/common/storage-sas-overview)
+- [Azure Blob Storage Security Best Practices](https://learn.microsoft.com/en-us/azure/storage/blobs/security-recommendations)
 
 ### Related Guides
 
@@ -1474,14 +1894,17 @@ For applications with same name but different versions:
 | Term | Definition |
 |------|------------|
 | **Azure Migrate** | Microsoft service for discovering, assessing, and migrating workloads to Azure |
+| **Azure Blob Storage** | Microsoft's object storage solution for the cloud, used for temporary file storage without requiring SharePoint/OneDrive access |
 | **CSV** | Comma-Separated Values file format |
 | **Copilot Studio** | Microsoft's no-code platform for building conversational AI agents |
 | **Power Automate** | Microsoft's workflow automation platform |
+| **SAS Token** | Shared Access Signature - a URI that grants restricted access to Azure Storage resources |
 | **SharePoint** | Microsoft's document management and collaboration platform |
 | **Consolidation** | Process of combining and deduplicating data |
 | **FQDN** | Fully Qualified Domain Name |
 | **Child Flow** | A Power Automate flow called from another flow |
 | **Orchestrator** | The main flow that coordinates other flows |
+| **Lifecycle Management** | Azure Blob Storage feature to automatically manage blob retention and deletion |
 
 ---
 
