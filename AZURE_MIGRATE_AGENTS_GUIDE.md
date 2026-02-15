@@ -167,7 +167,7 @@ Azure Blob Storage provides temporary file storage without requiring users to ha
 1. **Create an Azure Storage Account**:
    ```
    Resource Group: rg-azure-migrate-processing
-   Storage Account Name: stazuremigrateproc (must be globally unique)
+   Storage Account Name: stazuremigrateproc<unique-suffix> (must be globally unique, e.g., stazuremigrateproc123)
    Region: (Select your preferred region)
    Performance: Standard
    Redundancy: LRS (Locally-redundant storage) for temporary files
@@ -1201,7 +1201,7 @@ Actions:
    
    a. Create blob (V2) - Azure Blob Storage
       Connection: Your Azure Blob Storage connection
-      Storage account name: stazuremigrateproc (your account)
+      Storage account name: <your-storage-account-name>
       Container name: uploads
       Blob name: @{outputs('Generate_Session_ID')}/@{item()?['name']}
       Blob content: @{item()?['contentBytes']}
@@ -1324,7 +1324,7 @@ Trigger: When Power Virtual Agents calls a flow
 
 Actions:
 1. List blobs (V2) - Azure Blob Storage
-   Storage account: stazuremigrateproc
+   Storage account: <your-storage-account-name>
    Container: reports
    Prefix: @{triggerBody()?['sessionId']}/
 
@@ -1364,12 +1364,29 @@ For Azure Blob Storage, you have several options to generate secure download URL
 
 1. **Azure Function (Recommended)**:
    ```csharp
-   // Azure Function to generate SAS URL
+   // Azure Function to generate SAS URL with input validation
    [FunctionName("GenerateSasUrl")]
    public static async Task<IActionResult> Run(
        [HttpTrigger] HttpRequest req)
    {
-       string blobPath = req.Query["blobPath"];
+       string sessionId = req.Query["sessionId"];
+       string fileName = req.Query["fileName"];
+       
+       // Validate inputs - prevent path traversal attacks
+       if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(fileName))
+           return new BadRequestObjectResult("sessionId and fileName are required");
+       
+       // Validate sessionId is a valid GUID format
+       if (!Guid.TryParse(sessionId, out _))
+           return new BadRequestObjectResult("Invalid sessionId format");
+       
+       // Validate fileName doesn't contain path traversal sequences
+       if (fileName.Contains("..") || fileName.Contains("/") || fileName.Contains("\\"))
+           return new BadRequestObjectResult("Invalid fileName");
+       
+       // Construct validated blob path
+       string blobPath = $"{sessionId}/{fileName}";
+       
        var sasBuilder = new BlobSasBuilder
        {
            BlobContainerName = "reports",
@@ -1377,12 +1394,13 @@ For Azure Blob Storage, you have several options to generate secure download URL
            Resource = "b",
            ExpiresOn = DateTimeOffset.UtcNow.AddHours(24)
        };
+       // Read-only permission for download
        sasBuilder.SetPermissions(BlobSasPermissions.Read);
        // Generate and return SAS URL
    }
    ```
 
-2. **Pre-configured SAS Token**: Use a service SAS with limited permissions
+2. **Pre-configured SAS Token**: Use a service SAS with read-only permissions
 3. **Logic App with Managed Identity**: Use Azure Logic Apps with managed identity for blob access
 
 #### Option B: Get Processing Status - SharePoint
@@ -1685,7 +1703,9 @@ After processing the test files above:
 - "Signature did not match" error
 
 **Solutions:**
-1. Generate a new SAS token with correct permissions (Read, Write, List, Create)
+1. Generate a new SAS token with correct permissions:
+   - For **uploads**: Use Read, Write, Create permissions
+   - For **download links**: Use Read permission only (principle of least privilege)
 2. Ensure the SAS token hasn't expired
 3. Check the SAS token is for the correct container/blob
 4. Verify the SAS token start time is in the past (account for clock skew)
