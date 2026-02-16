@@ -1945,6 +1945,8 @@ Process SQL Server inventory sheets to create a unique list of SQL Server instan
    - Select **value** from "Get SQL Server Rows"
 4. Rename to: `Process Each SQL Instance`
 
+> **Important Note About Expression Names**: The expressions below reference the loop action name `Process_Each_SQL_Instance`. If you renamed your "Apply to each" action to something different, you must update the action name in all expressions to match.
+
 #### Step 4.2: Inside the Loop - Create Instance Key
 
 1. Inside the loop, click **Add an action**
@@ -2234,6 +2236,8 @@ Process database inventory sheets for non-SQL Server databases (Oracle, MySQL, P
    - **Select an output**: Click **Dynamic content** → Select **value** from "Get Database Rows"
 4. Rename to: `Process Each Database Row`
 
+> **Important Note About Expression Names**: The expressions below reference the loop action name `Process_Each_Database_Row`. If you renamed your "Apply to each" action to something different, you must update the action name in all expressions to match.
+
 #### Step 4.2: Inside the Loop - Normalize Database Type
 
 1. Inside the loop, click **Add an action** → **Compose**
@@ -2335,8 +2339,6 @@ concat(
   "processedAt": "@{utcNow()}"
 }
 ```
-
-**Note**: If you want to include database type counts in the output, you would need to add separate counter variables for each database type and increment them during the processing loop.
 
 3. Rename to: `Compose Database Output`
 
