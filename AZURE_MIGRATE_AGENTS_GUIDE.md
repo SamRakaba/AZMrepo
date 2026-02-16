@@ -1524,6 +1524,8 @@ Alternative approach using Azure Functions or custom connector for Excel parsing
 
 All the following actions go INSIDE the "Apply to each" loop.
 
+> **Important Note About Expression Names**: The expressions below reference the loop action name `Process_Each_Application_Row`. If you renamed your "Apply to each" action to something different in Step 5.1, you must update the action name in all expressions to match. For example, if you named your loop `Loop_Through_Apps`, change `items('Process_Each_Application_Row')` to `items('Loop_Through_Apps')` in all expressions.
+
 #### Step 6.1: Add Compose - Normalize Application Name
 
 1. Inside the loop, click **Add an action**
@@ -2202,38 +2204,6 @@ Process database inventory sheets for non-SQL Server databases (Oracle, MySQL, P
    - **Value**: `0`
 3. Rename to: `Initialize totalProcessed`
 
-#### Step 2.4: Add Variable - databaseTypeMapping
-
-This variable normalizes database type names for consistent comparison.
-
-1. Click **+** → **Add an action** → **Initialize variable**
-2. Configure:
-   - **Name**: `databaseTypeMapping`
-   - **Type**: **Object**
-   - **Value**:
-```json
-{
-  "oracle": "Oracle",
-  "oracle database": "Oracle",
-  "mysql": "MySQL",
-  "mysql server": "MySQL",
-  "postgresql": "PostgreSQL",
-  "postgres": "PostgreSQL",
-  "mongodb": "MongoDB",
-  "mongo": "MongoDB",
-  "mariadb": "MariaDB",
-  "maria db": "MariaDB",
-  "db2": "IBM DB2",
-  "ibm db2": "IBM DB2",
-  "cassandra": "Cassandra",
-  "apache cassandra": "Cassandra",
-  "redis": "Redis",
-  "couchdb": "CouchDB",
-  "dynamodb": "DynamoDB"
-}
-```
-3. Rename to: `Initialize databaseTypeMapping`
-
 ---
 
 ### Step 3: Retrieve Database Data
@@ -2361,16 +2331,13 @@ concat(
     "totalUnique": @{length(variables('uniqueDatabases'))},
     "duplicatesRemoved": @{sub(variables('totalProcessed'), length(variables('uniqueDatabases')))}
   },
-  "databaseTypes": {
-    "Oracle": @{length(filter(variables('uniqueDatabases'), item()?['NormalizedType'], 'oracle'))},
-    "MySQL": @{length(filter(variables('uniqueDatabases'), item()?['NormalizedType'], 'mysql'))},
-    "PostgreSQL": @{length(filter(variables('uniqueDatabases'), item()?['NormalizedType'], 'postgresql'))},
-    "Other": "See uniqueDatabases for full breakdown"
-  },
   "status": "Complete",
   "processedAt": "@{utcNow()}"
 }
 ```
+
+**Note**: If you want to include database type counts in the output, you would need to add separate counter variables for each database type and increment them during the processing loop.
+
 3. Rename to: `Compose Database Output`
 
 #### Step 5.3: Add HTTP Response
@@ -2430,7 +2397,6 @@ concat(
 │ • uniqueDatabases (Array: [])                                           │
 │ • processedDatabases (Object: {})                                       │
 │ • totalProcessed (Integer: 0)                                           │
-│ • databaseTypeMapping (Object: {...})                                   │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -2469,6 +2435,8 @@ concat(
 
 ### Purpose
 Generate the final consolidated Excel spreadsheet with all unique applications, SQL instances, and databases, and provide a download link to the user. This flow creates a professional multi-sheet Excel report.
+
+> **⚠️ Prerequisite**: Before configuring this flow, you must create an Excel template with predefined tables. See the [Creating the Excel Template](#creating-the-excel-template) section at the end of Agent 5 for detailed instructions. Upload the template to your SharePoint site (e.g., `/Templates/ReportTemplate.xlsx`) before proceeding.
 
 ---
 
