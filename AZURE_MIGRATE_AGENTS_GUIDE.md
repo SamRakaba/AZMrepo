@@ -478,71 +478,141 @@ RESPONSE STYLE:
 
 ---
 
-### Step 3: Create Variables
+### Step 3: Create Global Variables
 
-Variables store information during the conversation. You need to create both Global variables (persist across topics) and Topic variables (specific to each topic).
+Variables store information during the conversation. In Copilot Studio, variables are created **within topics** using nodes on the authoring canvas. To make a variable available across all topics (global), you change its scope in the variable properties panel.
 
-#### Step 3.1: Create Global Variables
+> **Note**: Copilot Studio does not have a separate "Variables" settings page. Variables are created within topic flows using "Set a variable value" nodes, and then their scope is changed to "Global" to make them accessible across all topics.
 
-1. In the left navigation panel, click on **Variables** (may be under Settings or in the main navigation)
-   - If you don't see Variables, click on **Settings** → **Variables**
+#### Step 3.1: Create a Setup Topic for Global Variables
 
-2. Click on the **Global variables** tab
+We'll create a dedicated topic to initialize all global variables needed for the agent.
 
-3. Click the **+ Add variable** button
+##### Step 3.1.1: Create the Initialization Topic
 
-4. **Create the sessionId variable**:
-   - **Name**: Click in the Name field and type: `sessionId`
-   - **Type**: Click the Type dropdown and select: **String**
-   - **Description**: Type: `Unique identifier for the current processing session`
-   - Click **Save** or **Add**
+1. In the left navigation panel, click on **Topics**
+2. Click the **+ Add a topic** button at the top
+3. From the dropdown menu, select **From blank**
+4. A new blank topic canvas will open
 
-5. Click the **+ Add variable** button again
+##### Step 3.1.2: Configure Topic Name
 
-6. **Create the uploadStatus variable**:
-   - **Name**: Type: `uploadStatus`
-   - **Type**: Select: **String**
-   - **Description**: Type: `Current status of file upload and processing`
-   - Click **Save** or **Add**
+1. At the top of the topic canvas, click on **Untitled** to edit it
+2. Type the topic name: `Initialize Global Variables`
+3. Press **Enter** to confirm the name
 
-7. Click the **+ Add variable** button again
+##### Step 3.1.3: Add Trigger Phrase
 
-8. **Create the downloadUrl variable**:
-   - **Name**: Type: `downloadUrl`
-   - **Type**: Select: **String**
-   - **Description**: Type: `URL for downloading the generated consolidated report`
-   - Click **Save** or **Add**
+1. In the **Trigger phrases** section, add a single trigger:
+   - Type: `Initialize session` and press **Enter**
 
-9. Click the **+ Add variable** button again
+> **Note**: This topic will be called programmatically at the start of conversations rather than triggered by user input directly.
 
-10. **Create the processingStatus variable**:
-    - **Name**: Type: `processingStatus`
-    - **Type**: Select: **String**
-    - **Description**: Type: `Current status of the processing workflow (Processing, Complete, Error)`
-    - Click **Save** or **Add**
+##### Step 3.1.4: Create the sessionId Variable
 
-11. Click the **+ Add variable** button again
+1. Below the trigger phrases section, click the **+** button to add a node
+2. From the dropdown menu, select **Variable management** → **Set a variable value**
+3. In the "Set variable" node that appears:
+   - Click on **Set variable** dropdown
+   - Click **Create new**
+   - In the variable name field, type: `sessionId`
+   - Click **Create** or press **Enter**
+4. For the **To value** field:
+   - Click the field and type a placeholder value: `""` (empty string)
+   - This will be set by Power Automate later
+5. **Change the variable scope to Global**:
+   - Click on the variable name `sessionId` in the node
+   - In the **Variable properties** panel that appears on the right:
+     - Look for the **Scope** dropdown (may show "Topic" by default)
+     - Click the dropdown and select **Global**
+   - The variable will now be prefixed with `Global.` (shown as `Global.sessionId`)
+6. Click outside the panel to close it
 
-12. **Create the errorMessage variable**:
-    - **Name**: Type: `errorMessage`
-    - **Type**: Select: **String**
-    - **Description**: Type: `Error message to display if processing fails`
-    - Click **Save** or **Add**
+##### Step 3.1.5: Create the uploadStatus Variable
 
-13. Verify all global variables are created:
-    ```
-    ┌────────────────────┬─────────┬────────────────────────────────────────────┐
-    │ Variable Name      │ Type    │ Description                                │
-    ├────────────────────┼─────────┼────────────────────────────────────────────┤
-    │ sessionId          │ String  │ Unique identifier for the current session  │
-    │ uploadStatus       │ String  │ Current status of file upload              │
-    │ downloadUrl        │ String  │ URL for downloading the report             │
-    │ processingStatus   │ String  │ Current status of processing workflow      │
-    │ errorMessage       │ String  │ Error message if processing fails          │
-    └────────────────────┴─────────┴────────────────────────────────────────────┘
-    ```
+1. Below the previous node, click the **+** button
+2. Select **Variable management** → **Set a variable value**
+3. In the "Set variable" node:
+   - Click **Set variable** → **Create new**
+   - Type variable name: `uploadStatus`
+   - Click **Create**
+4. For **To value**, type: `"Pending"`
+5. **Change scope to Global**:
+   - Click on the variable name `uploadStatus`
+   - In the Variable properties panel, change **Scope** to **Global**
 
-14. Click the **Save** button to save all variables
+##### Step 3.1.6: Create the downloadUrl Variable
+
+1. Click the **+** button below the previous node
+2. Select **Variable management** → **Set a variable value**
+3. In the "Set variable" node:
+   - Click **Set variable** → **Create new**
+   - Type variable name: `downloadUrl`
+   - Click **Create**
+4. For **To value**, type: `""`
+5. **Change scope to Global**:
+   - Click on the variable name `downloadUrl`
+   - In the Variable properties panel, change **Scope** to **Global**
+
+##### Step 3.1.7: Create the processingStatus Variable
+
+1. Click the **+** button below the previous node
+2. Select **Variable management** → **Set a variable value**
+3. In the "Set variable" node:
+   - Click **Set variable** → **Create new**
+   - Type variable name: `processingStatus`
+   - Click **Create**
+4. For **To value**, type: `"Not Started"`
+5. **Change scope to Global**:
+   - Click on the variable name `processingStatus`
+   - In the Variable properties panel, change **Scope** to **Global**
+
+##### Step 3.1.8: Create the errorMessage Variable
+
+1. Click the **+** button below the previous node
+2. Select **Variable management** → **Set a variable value**
+3. In the "Set variable" node:
+   - Click **Set variable** → **Create new**
+   - Type variable name: `errorMessage`
+   - Click **Create**
+4. For **To value**, type: `""`
+5. **Change scope to Global**:
+   - Click on the variable name `errorMessage`
+   - In the Variable properties panel, change **Scope** to **Global**
+
+##### Step 3.1.9: Add End Conversation Node
+
+1. Click the **+** button below the last variable node
+2. Select **Topic management** → **End current topic**
+3. This ensures the topic ends cleanly after initialization
+
+##### Step 3.1.10: Save the Topic
+
+1. Click the **Save** button at the top-right of the canvas
+2. Wait for the "Topic saved" confirmation
+
+#### Step 3.2: Verify Global Variables
+
+After saving the topic, verify your global variables are created:
+
+1. Open any topic in your agent (or create a test topic)
+2. Add a "Send a message" node
+3. Click the **{x}** icon (Insert variable) in the message text
+4. In the variable picker, you should see your global variables listed with the `Global.` prefix:
+
+```
+┌──────────────────────────┬─────────┬───────────────────────────────────────────┐
+│ Variable Name            │ Type    │ Purpose                                   │
+├──────────────────────────┼─────────┼───────────────────────────────────────────┤
+│ Global.sessionId         │ String  │ Unique identifier for the current session │
+│ Global.uploadStatus      │ String  │ Current status of file upload             │
+│ Global.downloadUrl       │ String  │ URL for downloading the report            │
+│ Global.processingStatus  │ String  │ Current status of processing workflow     │
+│ Global.errorMessage      │ String  │ Error message if processing fails         │
+└──────────────────────────┴─────────┴───────────────────────────────────────────┘
+```
+
+> **Tip**: Global variable names must be unique across all topics in the agent. Once created, these variables can be accessed and modified from any topic by using the **{x}** variable picker.
 
 ---
 
