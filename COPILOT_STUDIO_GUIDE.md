@@ -4,13 +4,25 @@ This guide provides step-by-step instructions for creating and configuring a Mic
 
 ## Table of Contents
 1. [Prerequisites](#prerequisites)
-2. [Getting Started](#getting-started)
+2. [Getting Started - Portal Navigation](#getting-started---portal-navigation)
+   - [Accessing the Portal](#step-1-access-copilot-studio-portal)
+   - [Understanding the Interface](#step-2-understanding-the-portal-interface)
+   - [Navigation Reference](#portal-navigation-reference)
 3. [Creating Your First Agent](#creating-your-first-agent)
+   - [Starting Agent Creation](#step-3-start-creating-a-new-agent)
+   - [Agent Creation Wizard](#step-4-complete-the-agent-creation-wizard)
+   - [Initial Agent Configuration](#step-5-initial-agent-configuration)
 4. [Configuring Agent Capabilities](#configuring-agent-capabilities)
-5. [Adding Topics and Conversations](#adding-topics-and-conversations)
-6. [Testing Your Agent](#testing-your-agent)
-7. [Publishing Your Agent](#publishing-your-agent)
-8. [Best Practices](#best-practices)
+   - [Adding Knowledge Sources](#step-6-add-knowledge-sources)
+   - [Defining Topics](#step-7-define-topics)
+   - [Creating Actions](#step-8-create-actions-and-integrations)
+   - [Configuring Entities](#step-9-configure-entities)
+5. [Testing Your Agent](#testing-your-agent)
+6. [Publishing Your Agent](#publishing-your-agent)
+7. [Best Practices](#best-practices)
+8. [Advanced Features](#advanced-features)
+9. [Troubleshooting Common Issues](#troubleshooting-common-issues)
+10. [Resources](#resources)
 
 ## Prerequisites
 
@@ -22,248 +34,976 @@ Before you begin building your Copilot Studio agent, ensure you have:
 - **Browser**: A modern web browser (Microsoft Edge, Chrome, Firefox, or Safari)
 - **Optional**: Basic understanding of conversational AI concepts
 
-## Getting Started
+---
 
-### Step 1: Access Copilot Studio
+## Getting Started - Portal Navigation
 
-1. Navigate to [https://copilotstudio.microsoft.com](https://copilotstudio.microsoft.com)
-2. Sign in with your Microsoft 365 credentials
-3. Select your environment (Production, Sandbox, etc.)
-4. Review the Copilot Studio dashboard
+This section provides detailed step-by-step instructions for navigating the Copilot Studio portal.
 
-### Step 2: Understand the Interface
+### Step 1: Access Copilot Studio Portal
 
-Familiarize yourself with the main components:
-- **Home**: Overview and quick access to agents
-- **Copilots**: List of all your agents
-- **Topics**: Conversation flows and logic
-- **Entities**: Custom data types for information extraction
-- **Analytics**: Performance metrics and usage statistics
-- **Publish**: Deployment and channel management
+**Opening the Portal:**
+
+1. **Open your web browser** (Microsoft Edge recommended for best experience)
+
+2. **Navigate to Copilot Studio:**
+   - Type `https://copilotstudio.microsoft.com` in the address bar
+   - Press **Enter** to load the page
+
+3. **Sign in with your Microsoft 365 credentials:**
+   - On the sign-in page, enter your **work email address** in the email field
+   - Click the **"Next"** button (blue button on the right)
+   - Enter your **password** in the password field
+   - Click **"Sign in"** button
+   - If prompted for multi-factor authentication (MFA), complete the verification
+
+4. **Select your environment** (if prompted):
+   - You will see a dropdown menu labeled **"Environment"** in the top-right corner of the header bar
+   - Click the dropdown to see available environments (e.g., "Default", "Production", "Development")
+   - Select the appropriate environment for your agent
+   - **Note**: If you don't see environment options, your organization may have a default environment configured
+
+5. **Wait for the dashboard to load:**
+   - The main Copilot Studio dashboard will appear
+   - You'll see the **Home** page with options to create new agents or access existing ones
+
+### Step 2: Understanding the Portal Interface
+
+**Main Portal Layout:**
+
+The Copilot Studio portal has the following main areas:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  HEADER BAR                                                                  │
+│  ┌──────────────┬─────────────────────────────────────┬──────────────────┐  │
+│  │ Microsoft    │           Search Bar                │ Environment ▼   │  │
+│  │ Copilot      │                                     │ User Account    │  │
+│  │ Studio Logo  │                                     │ Settings ⚙️     │  │
+│  └──────────────┴─────────────────────────────────────┴──────────────────┘  │
+├───────────────────┬─────────────────────────────────────────────────────────┤
+│  LEFT NAVIGATION  │                MAIN CONTENT AREA                        │
+│  (Side Panel)     │                                                         │
+│  ┌───────────────┐│  ┌─────────────────────────────────────────────────┐   │
+│  │ 🏠 Home       ││  │                                                 │   │
+│  │ 🤖 Copilots   ││  │   Dashboard / Agent Editor / Configuration     │   │
+│  │ 📚 Knowledge  ││  │                                                 │   │
+│  │ 💬 Topics     ││  │                                                 │   │
+│  │ 📊 Entities   ││  │                                                 │   │
+│  │ ⚡ Actions    ││  │                                                 │   │
+│  │ 📈 Analytics  ││  │                                                 │   │
+│  │ 🚀 Publish    ││  │                                                 │   │
+│  │ ⚙️ Settings   ││  │                                                 │   │
+│  └───────────────┘│  └─────────────────────────────────────────────────┘   │
+│                   │                                                         │
+│                   │  ┌─────────────────────────────────────────────────┐   │
+│                   │  │           TEST BOT PANEL (Bottom Right)         │   │
+│                   │  │           (Collapsible chat interface)          │   │
+│                   │  └─────────────────────────────────────────────────┘   │
+└───────────────────┴─────────────────────────────────────────────────────────┘
+```
+
+**Navigation Panel Elements (Left Side):**
+
+| Icon | Menu Item | Location | Description |
+|------|-----------|----------|-------------|
+| 🏠 | **Home** | Top of left panel | Returns to main dashboard; shows recent agents and quick actions |
+| 🤖 | **Copilots** | Below Home | Lists all your agents; click to view/manage agents |
+| 📚 | **Knowledge** | Below Copilots | Manage knowledge sources (appears when editing an agent) |
+| 💬 | **Topics** | Below Knowledge | Create and manage conversation topics (appears when editing an agent) |
+| 📊 | **Entities** | Below Topics | Define custom entities for data extraction (appears when editing an agent) |
+| ⚡ | **Actions** | Below Entities | Configure Power Automate flows and connectors (appears when editing an agent) |
+| 📈 | **Analytics** | Below Actions | View performance metrics and usage statistics |
+| 🚀 | **Publish** | Below Analytics | Deploy your agent to channels |
+| ⚙️ | **Settings** | Bottom of left panel | Configure agent settings, authentication, and integrations |
+
+**Header Bar Elements:**
+
+| Element | Location | Description |
+|---------|----------|-------------|
+| **Microsoft Copilot Studio Logo** | Top-left corner | Click to return to Home from anywhere |
+| **Search Bar** | Top-center | Search for agents, topics, or help content |
+| **Environment Dropdown** | Top-right area | Switch between environments (Dev/Test/Prod) |
+| **User Account Icon** | Top-right corner | Access account settings, sign out |
+| **Settings Gear** | Top-right corner | Access global portal settings |
+
+### Portal Navigation Reference
+
+**Quick Navigation Paths:**
+
+Use these navigation paths to quickly find common features:
+
+| To Access | Navigation Path |
+|-----------|-----------------|
+| Create New Agent | Home → **"+ Create"** button (top-center) |
+| View All Agents | Left Panel → **Copilots** |
+| Agent Settings | Left Panel → **Settings** → Select settings category |
+| Add Knowledge | Left Panel → **Knowledge** → **"+ Add knowledge"** |
+| Create Topic | Left Panel → **Topics** → **"+ Add a topic"** |
+| Add Action | Left Panel → **Actions** → **"+ Add an action"** |
+| Test Agent | Click **"Test"** button (bottom-left corner) |
+| Publish Agent | Left Panel → **Publish** OR Top-right **"Publish"** button |
+| View Analytics | Left Panel → **Analytics** |
+
+---
 
 ## Creating Your First Agent
 
-### Step 3: Create a New Agent
+This section walks you through creating a new agent with detailed portal navigation.
 
-1. Click **"+ Create"** or **"New copilot"** button
-2. Choose your creation method:
-   - **Start from blank**: Build from scratch
-   - **Start from template**: Use pre-built templates
-   - **Start from website**: Generate from existing web content
+### Step 3: Start Creating a New Agent
 
-3. Configure basic settings:
-   ```
-   Name: [Your Agent Name]
-   Description: [Brief description of agent purpose]
-   Language: [Select primary language]
-   ```
+**Initiating Agent Creation:**
 
-4. Click **"Create"** to initialize your agent
+1. **From the Home page**, locate the **"+ Create"** button:
+   - The button is in the **top-center area** of the Home page
+   - It may appear as a **purple/blue button** labeled **"+ Create"** or **"+ New copilot"**
+   - **Alternative**: Click **"Copilots"** in the left navigation → then click **"+ Create"** in the top-right
 
-### Step 4: Configure Agent Settings
+2. **Click the "Create" button** - A creation wizard dialog will open
 
-1. Navigate to **Settings** from the left menu
-2. Configure the following sections:
+3. **Choose your creation method** from the options presented:
 
-#### General Settings
-- **Agent Name**: Display name for your agent
-- **Agent Icon**: Upload a custom icon/avatar
-- **Description**: Detailed description of agent capabilities
+   | Option | Icon | Description | Best For |
+   |--------|------|-------------|----------|
+   | **Skip to configure** | ➡️ | Start with minimal configuration and customize later | Experienced users who know what they need |
+   | **Start from blank** | 📝 | Build from scratch with full control | Custom agents with specific requirements |
+   | **Start from template** | 📋 | Use pre-built templates for common scenarios | Quick starts; common use cases |
+   | **Start from website** | 🌐 | Generate topics from existing web content | When you have documentation to leverage |
+   | **Start from document** | 📄 | Generate from uploaded documents | When you have existing content |
 
-#### Security Settings
-- **Authentication**: Configure user authentication (No authentication, Manual, or OAuth)
-- **Permissions**: Set who can access the agent
+4. **Select your preferred option** by clicking on the corresponding card
 
-#### AI Capabilities
-- **Generative AI**: Enable/disable AI-powered responses
-- **Generative Answers**: Allow agent to answer from specified sources
-- **Boost Conversations**: Enable AI enhancements
+### Step 4: Complete the Agent Creation Wizard
+
+**For "Skip to Configure" or "Start from Blank":**
+
+After selecting your creation method, you'll see a configuration panel:
+
+**Step 4a: Name Your Agent**
+
+1. Look for the **"Name"** field (usually the first field at the top)
+2. **Click in the text field** and type your agent's name
+   - **Example**: `Azure Resource Helper` or `HR Support Bot`
+   - **Tip**: Use a descriptive name that reflects the agent's purpose
+
+**Step 4b: Add a Description (Optional but Recommended)**
+
+1. Below the Name field, find the **"Description"** field
+2. **Click in the text field** and type a brief description
+   - **Example**: `This agent helps employees find HR policies and submit time-off requests`
+   - **Tip**: This description helps users understand what the agent does
+
+**Step 4c: Select the Primary Language**
+
+1. Find the **"Language"** dropdown below the Description field
+2. **Click the dropdown** to see available languages
+3. **Select your primary language** (e.g., "English (en-US)")
+4. **Note**: You can add more languages later in Settings
+
+**Step 4d: Configure Instructions (AI Behavior)**
+
+1. Look for the **"Instructions"** or **"What should your copilot do?"** text area
+2. **Click in the text area** and describe how your agent should behave
+3. Write clear instructions in natural language
+   - **Example Instructions**:
+     ```
+     You are a helpful HR assistant. You help employees with:
+     - Finding company policies
+     - Submitting time-off requests  
+     - Answering benefits questions
+     Always be professional, helpful, and concise.
+     If you don't know an answer, direct users to HR.
+     ```
+
+**Step 4e: Review and Create**
+
+1. Review all the information you've entered
+2. Locate the **"Create"** button (usually in the bottom-right of the dialog)
+3. **Click "Create"** to initialize your agent
+4. **Wait** for the agent to be created (typically 10-30 seconds)
+5. You'll be automatically redirected to the **Agent Editor** view
+
+### Step 5: Initial Agent Configuration
+
+**After your agent is created, you'll see the Agent Editor:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  AGENT EDITOR VIEW                                                          │
+├───────────────────┬─────────────────────────────────────────────────────────┤
+│  LEFT NAVIGATION  │                AGENT OVERVIEW                           │
+│                   │  ┌─────────────────────────────────────────────────┐   │
+│  🏠 Home          │  │  Agent Name: [Your Agent Name]                  │   │
+│  📋 Overview      │  │  Status: Draft                                  │   │
+│  📚 Knowledge     │  │                                                 │   │
+│  💬 Topics        │  │  [Quick setup cards showing next steps]         │   │
+│  📊 Entities      │  │                                                 │   │
+│  ⚡ Actions       │  │  • Add knowledge sources                        │   │
+│  📈 Analytics     │  │  • Create topics                                │   │
+│  🚀 Publish       │  │  • Configure settings                           │   │
+│  ⚙️ Settings      │  │  • Test your agent                              │   │
+│                   │  └─────────────────────────────────────────────────┘   │
+│                   │                                                         │
+│                   │  ┌─────────────────────────────────────────────────┐   │
+│                   │  │  TEST BOT    [Click to test your agent]        │   │
+│                   │  └─────────────────────────────────────────────────┘   │
+└───────────────────┴─────────────────────────────────────────────────────────┘
+```
+
+**Navigate to Settings to complete initial configuration:**
+
+1. **Click "Settings"** in the left navigation panel (gear icon ⚙️ at the bottom)
+
+2. **In the Settings panel, you'll see multiple tabs/sections:**
+
+   | Settings Tab | Location | What to Configure |
+   |--------------|----------|-------------------|
+   | **General** | First tab | Agent name, icon, description |
+   | **AI capabilities** | Second tab | Generative AI settings |
+   | **Security** | Third tab | Authentication, access control |
+   | **Channels** | Fourth tab | Deployment options |
+   | **Language** | Fifth tab | Multi-language support |
+
+**Step 5a: Configure General Settings**
+
+1. **Click "General"** tab in Settings
+2. Configure the following:
+
+   **Agent Name:**
+   - Click in the **"Name"** field
+   - Edit if needed (this is the display name users will see)
+
+   **Agent Icon:**
+   - Click on the **current icon** or **"Change icon"** link
+   - Choose from:
+     - **Default icons**: Click an icon from the gallery
+     - **Upload custom**: Click **"Upload"** → select an image file (PNG/JPG, max 30KB recommended)
+   - Click **"Save"** or **"Apply"** after selecting
+
+   **Agent Description:**
+   - Click in the **"Description"** text area
+   - Add or edit the agent's description (this appears in agent listings)
+
+3. **Click "Save"** button (top-right of Settings panel) to save changes
+
+**Step 5b: Configure AI Capabilities**
+
+1. **Click "AI capabilities"** tab in Settings (or scroll down in Settings)
+2. Configure the following options:
+
+   **Generative AI:**
+   - Find the **"Generative AI"** toggle switch
+   - **Toggle ON** (switch should turn blue/green) to enable AI-powered responses
+   - This allows your agent to generate natural responses using AI
+
+   **Generative Answers:**
+   - Find **"Generative answers"** toggle
+   - **Toggle ON** to allow agent to answer questions from knowledge sources
+   - **Note**: This requires adding knowledge sources (covered in next section)
+
+   **Content Moderation:**
+   - Find **"Content moderation"** setting
+   - Select moderation level: **"Standard"** (recommended) or **"None"**
+   - This filters inappropriate content in conversations
+
+3. **Click "Save"** to apply AI settings
+
+**Step 5c: Configure Security Settings (Optional for Initial Setup)**
+
+1. **Click "Security"** tab in Settings
+2. **Authentication** options:
+   - **No authentication**: Anyone can use the agent
+   - **Only for Teams and Power Apps**: Integrated authentication
+   - **Manual (custom)**: Configure OAuth or custom authentication
+
+   **For initial setup**, you can leave authentication as **"No authentication"**
+   
+3. **Click "Save"** if you made changes
+
+---
 
 ## Configuring Agent Capabilities
 
-### Step 5: Add Knowledge Sources
+This section provides detailed navigation for adding knowledge, topics, actions, and entities.
 
-1. Go to **Knowledge** in the left navigation
-2. Click **"+ Add knowledge"**
-3. Choose knowledge source types:
-   - **Public websites**: Add URLs for web scraping
-   - **Files**: Upload documents (PDF, DOCX, etc.)
-   - **SharePoint**: Connect to SharePoint sites
-   - **Dataverse**: Connect to Dataverse tables
+### Step 6: Add Knowledge Sources
 
-4. Configure each source:
-   ```
-   Source URL/File: [Your source]
-   Scope: [Full site or specific pages]
-   Refresh schedule: [Optional: Auto-refresh settings]
-   ```
+Knowledge sources allow your agent to answer questions using existing content.
 
-### Step 6: Define Topics
+**Navigation Path:** Left Panel → **Knowledge** → **"+ Add knowledge"**
 
-Topics are the conversation flows that guide interactions.
+**Step 6a: Navigate to Knowledge**
 
-1. Navigate to **Topics** tab
-2. Click **"+ Add a topic"** > **"From blank"**
-3. Configure your topic:
+1. In the left navigation panel, **click "Knowledge"** (📚 icon)
+2. The Knowledge management page will open in the main content area
+3. You'll see:
+   - A list of existing knowledge sources (if any)
+   - An **"+ Add knowledge"** button in the top-right or center of the page
 
-   ```
-   Topic Name: [Descriptive name]
-   Trigger Phrases: [Add 5-10 example phrases that trigger this topic]
-   ```
+**Step 6b: Add a Knowledge Source**
 
-4. Build the conversation flow:
-   - **Add nodes**: Message, Question, Condition, Action, etc.
-   - **Connect nodes**: Define the conversation path
-   - **Add variables**: Store and use information
-   - **Add conditions**: Branch based on user responses
+1. **Click "+ Add knowledge"** button
+2. A dialog will appear with knowledge source types:
 
-#### Example Topic Structure:
+   | Source Type | Icon | Navigation | Description |
+   |-------------|------|------------|-------------|
+   | **Public websites** | 🌐 | Click "Public websites" card | Add URLs for web content |
+   | **Files** | 📄 | Click "Files" card | Upload PDF, DOCX, XLSX, PPTX |
+   | **SharePoint** | 📁 | Click "SharePoint" card | Connect to SharePoint sites |
+   | **Dataverse** | 🗃️ | Click "Dataverse" card | Connect to Dataverse tables |
+   | **Custom connectors** | 🔌 | Click "Custom connectors" | Connect to custom data sources |
+
+3. **Select your knowledge source type** by clicking on the card
+
+**Step 6c: Configure Public Website Knowledge**
+
+If you selected **"Public websites"**:
+
+1. **In the URL field**, type or paste the website URL
+   - **Example**: `https://docs.microsoft.com/azure`
+   
+2. **Click "Add"** to add the URL to the list
+
+3. **Configure indexing scope** (if available):
+   - **Full site**: Index entire website
+   - **Specific pages**: Index only specific URLs
+
+4. **Click "Add"** or **"Save"** button to save the knowledge source
+
+5. **Wait for indexing** - A progress indicator will show indexing status
+   - Status will change from "Indexing" to "Ready" when complete
+
+**Step 6d: Configure File Upload Knowledge**
+
+If you selected **"Files"**:
+
+1. **Click "Upload file"** or **drag and drop** files onto the upload area
+2. **Select files** from your computer (supported: PDF, DOCX, XLSX, PPTX, TXT)
+3. **Wait for upload** to complete (progress bar will show)
+4. **Click "Add"** to add the files as knowledge
+
+**Step 6e: Verify Knowledge Sources**
+
+1. After adding, you'll return to the Knowledge list
+2. **Verify your sources appear** in the list with "Ready" status
+3. **To edit/remove**: Click on a knowledge source → use Edit or Delete options
+
+---
+
+### Step 7: Define Topics
+
+Topics define conversation flows - what your agent says and does in response to user inputs.
+
+**Navigation Path:** Left Panel → **Topics** → **"+ Add a topic"**
+
+**Step 7a: Navigate to Topics**
+
+1. In the left navigation panel, **click "Topics"** (💬 icon)
+2. The Topics page will open showing:
+   - **System topics**: Pre-built topics (Greeting, Goodbye, Fallback, etc.)
+   - **Custom topics**: Topics you create
+3. You'll see topic status indicators (On/Off)
+
+**Step 7b: Understand Existing System Topics**
+
+Before creating custom topics, review system topics:
+
+| System Topic | Purpose | Location |
+|--------------|---------|----------|
+| **Greeting** | Welcome message when users start | Topics → System → Greeting |
+| **Goodbye** | Farewell message when users leave | Topics → System → Goodbye |
+| **Fallback** | Response when agent doesn't understand | Topics → System → Fallback |
+| **Escalate** | Transfer to human agent | Topics → System → Escalate |
+| **Start over** | Reset conversation | Topics → System → Start over |
+
+**Step 7c: Create a New Topic**
+
+1. **Click "+ Add a topic"** button (top of Topics page)
+
+2. **Choose creation method**:
+
+   | Option | Description | When to Use |
+   |--------|-------------|-------------|
+   | **From blank** | Start with empty topic | Custom conversation flows |
+   | **From description (AI)** | AI generates topic from description | Quick topic creation |
+
+3. **If selecting "From blank"**:
+   - Click **"From blank"** card
+   - You'll be taken to the **Topic Editor**
+
+**Step 7d: Configure Topic in the Topic Editor**
+
+The Topic Editor has these main areas:
+
 ```
-Trigger: "I need help with billing"
-├─ Message: "I can help you with billing questions"
-├─ Question: "What specific billing issue are you facing?"
-│  ├─ Variable: userIssue (Multiple choice)
-│  └─ Options: 
-│     ├─ "Payment method"
-│     ├─ "Invoice inquiry"
-│     └─ "Billing dispute"
-├─ Condition: Check userIssue value
-│  ├─ If "Payment method" → Topic: Update Payment
-│  ├─ If "Invoice inquiry" → Topic: Invoice Help
-│  └─ If "Billing dispute" → Escalate to Human
-└─ Message: "Is there anything else I can help with?"
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  TOPIC EDITOR                                                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  TOPIC NAME: [Click to edit name]                      Status: Draft  │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  TRIGGER PHRASES                                                      │  │
+│  │  ┌─────────────────────────────────────────────────────────────────┐  │  │
+│  │  │  + Add phrases that will trigger this topic                    │  │  │
+│  │  │  Example: "I need help with billing"                           │  │  │
+│  │  │  Example: "billing question"                                   │  │  │
+│  │  └─────────────────────────────────────────────────────────────────┘  │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │  CONVERSATION FLOW (Authoring Canvas)                                 │  │
+│  │  ┌─────────┐                                                          │  │
+│  │  │ Trigger │ → [+] Add node                                           │  │
+│  │  └─────────┘                                                          │  │
+│  │                                                                        │  │
+│  │  [Visual flow editor with drag-and-drop nodes]                        │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────────┐│
+│  │ TEST BOT PANEL (collapsible, bottom-right)                              ││
+│  └─────────────────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Step 7: Create Actions and Integrations
+**Step 7e: Add Topic Name and Trigger Phrases**
 
-1. Navigate to **Actions** in the left menu
-2. Add actions to extend functionality:
+1. **Set Topic Name:**
+   - Click on the topic name field at the top (shows "Untitled" or default name)
+   - Type a descriptive name (e.g., "Billing Help")
+   - Press **Enter** or click outside to save
 
-#### Power Automate Flows
-- Click **"+ Add an action"**
-- Select **"Create a flow"**
-- Build flow in Power Automate
-- Add input/output parameters
-- Save and return to Copilot Studio
+2. **Add Trigger Phrases:**
+   - In the **Trigger Phrases** section, click **"+ Add"** or in the text field
+   - Type a phrase that users might say to trigger this topic
+   - Press **Enter** to add the phrase
+   - **Add 5-10 variations** for better recognition
+   
+   **Example trigger phrases for "Billing Help" topic:**
+   ```
+   I need help with billing
+   billing question
+   can you help me with my bill
+   I have a billing issue
+   question about my invoice
+   help with payment
+   billing inquiry
+   I need to discuss billing
+   ```
 
-#### Connector Actions
-- Choose from pre-built connectors
-- Configure authentication
-- Map input/output variables
+**Step 7f: Build the Conversation Flow**
 
-#### Example Actions:
-- Send email notifications
-- Create database records
-- Call external APIs
-- Update CRM systems
-- Generate reports
+1. **Below the trigger phrases**, you'll see the **Authoring Canvas** with a "Trigger" node
 
-### Step 8: Configure Entities
+2. **Click the "+" button** below the Trigger node to add your first node
 
-Entities help extract and validate information from user inputs.
+3. **Select a node type** from the menu:
 
-1. Go to **Entities** section
-2. Use system entities or create custom ones:
+   | Node Type | Icon | Purpose | How to Use |
+   |-----------|------|---------|------------|
+   | **Send a message** | 💬 | Display text to user | Click → type message |
+   | **Ask a question** | ❓ | Get user input | Click → configure question |
+   | **Add a condition** | 🔀 | Branch based on logic | Click → set conditions |
+   | **Variable management** | 📊 | Set or clear variables | Click → configure variable |
+   | **Topic management** | 🔄 | Go to another topic or end | Click → select topic |
+   | **Call an action** | ⚡ | Execute Power Automate flow | Click → select action |
+   | **Advanced** | ⚙️ | HTTP requests, authentication | Click → configure |
 
-#### System Entities (Pre-built):
-- Age
-- Boolean
-- City
-- Color
-- Date and Time
-- Email
-- Language
-- Money
-- Number
-- Percentage
-- Phone Number
-- State
-- Temperature
-- URL
-- Zip Code
+4. **Add a Message Node (example):**
+   - Click the **"+"** button
+   - Select **"Send a message"**
+   - In the message box that appears, type your message
+   - **Example**: `I can help you with billing questions. What would you like to know?`
 
-#### Custom Entities:
-1. Click **"+ Add an entity"**
-2. Choose entity type:
-   - **Closed list**: Predefined values (e.g., Product Types)
-   - **Regular expression**: Pattern matching (e.g., Order IDs)
-   - **Smart matching**: AI-powered extraction
+5. **Add a Question Node (example):**
+   - Click the **"+"** button after your message
+   - Select **"Ask a question"**
+   - Configure:
+     - **Question text**: What do you want to ask?
+     - **Identify**: Choose response type (Multiple choice, Text, Number, etc.)
+     - **Save response as**: Variable name for the answer
+
+6. **Continue building** by adding more nodes as needed
+
+7. **Click "Save"** (top-right) to save your topic
+
+**Example Complete Topic Flow:**
+```
+Trigger: "billing help" phrases
+    ↓
+Message: "I can help you with billing questions!"
+    ↓
+Question: "What type of billing help do you need?"
+    - Options: [Payment method] [Invoice inquiry] [Billing dispute]
+    ↓
+Condition: Check user's selection
+    ├── If "Payment method" → Go to: Payment Topic
+    ├── If "Invoice inquiry" → Go to: Invoice Topic
+    └── If "Billing dispute" → Message: "Let me connect you with support..."
+    ↓
+Message: "Is there anything else I can help with?"
+```
+
+---
+
+### Step 8: Create Actions and Integrations
+
+Actions connect your agent to external services and automate tasks.
+
+**Navigation Path:** Left Panel → **Actions** → **"+ Add an action"**
+
+**Step 8a: Navigate to Actions**
+
+1. In the left navigation panel, **click "Actions"** (⚡ icon)
+2. The Actions page will open showing:
+   - Existing actions (if any)
+   - **"+ Add an action"** button
+
+**Step 8b: Add a New Action**
+
+1. **Click "+ Add an action"** button
+
+2. **Choose action type** from the dialog:
+
+   | Action Type | Description | Navigation |
+   |-------------|-------------|------------|
+   | **Create a flow** | Create new Power Automate flow | Click "Create a flow" |
+   | **Choose from existing flows** | Use existing flow | Click "Choose an existing flow" |
+   | **Use a connector** | Pre-built service connectors | Click "Use a connector" |
+   | **Custom prompt** | AI-powered custom action | Click "Custom prompt" |
+
+**Step 8c: Create a Power Automate Flow**
+
+If you selected **"Create a flow"**:
+
+1. **Power Automate will open** in a new tab/window
+
+2. **Configure your flow:**
+   - **Trigger**: "When Power Virtual Agents calls a flow" (pre-selected)
+   - **Add input parameters**: Define what data the agent passes to the flow
+   - **Add actions**: Choose connectors (Office 365, SharePoint, HTTP, etc.)
+   - **Add output**: Define what data returns to the agent
+
+3. **Example Flow Structure:**
+   ```
+   Trigger: When Copilot calls a flow
+   ├── Input: userEmail (text)
+   ├── Action: Get user profile (Office 365)
+   ├── Action: Send email notification
+   └── Output: confirmation message
+   ```
+
+4. **Save the flow** by clicking "Save" in Power Automate
+
+5. **Return to Copilot Studio** - the action will appear in your Actions list
+
+**Step 8d: Use a Connector**
+
+If you selected **"Use a connector"**:
+
+1. **Browse available connectors** in the connector gallery
+
+2. **Popular connectors:**
+   - **Office 365 Outlook**: Send emails
+   - **SharePoint**: Manage files and lists
+   - **Microsoft Teams**: Post messages
+   - **HTTP**: Call external APIs
+   - **Dataverse**: Database operations
+
+3. **Select a connector** by clicking on it
+
+4. **Configure the action:**
+   - Set up authentication (if required)
+   - Map input/output parameters
+   - Test the connection
+
+5. **Click "Add"** to save the action
+
+**Step 8e: Use Actions in Topics**
+
+After creating an action:
+
+1. **Go to Topics** → open a topic
+
+2. In the conversation flow, click **"+"** → select **"Call an action"**
+
+3. **Select your action** from the list
+
+4. **Map inputs**: Connect topic variables to action inputs
+
+5. **Map outputs**: Store action outputs in topic variables
+
+6. **Continue the flow** with a message using the output
+
+---
+
+### Step 9: Configure Entities
+
+Entities help extract and validate specific information from user inputs.
+
+**Navigation Path:** Left Panel → **Entities** → **"+ Add an entity"**
+
+**Step 9a: Navigate to Entities**
+
+1. In the left navigation panel, **click "Entities"** (📊 icon)
+2. You'll see:
+   - **System entities**: Pre-built (Age, Email, Phone, etc.)
+   - **Custom entities**: Entities you create
+   
+**Step 9b: View System Entities**
+
+System entities are pre-built and ready to use:
+
+| Entity Name | Extracts | Example Match |
+|-------------|----------|---------------|
+| **Age** | Age values | "25 years old" → 25 |
+| **Boolean** | Yes/No values | "yes", "no", "true" |
+| **City** | City names | "Seattle", "New York" |
+| **Date and Time** | Date/time | "tomorrow at 3pm" |
+| **Email** | Email addresses | "user@example.com" |
+| **Money** | Currency amounts | "$50", "100 dollars" |
+| **Number** | Numeric values | "42", "one hundred" |
+| **Phone Number** | Phone numbers | "(555) 123-4567" |
+| **URL** | Web addresses | "https://example.com" |
+
+**Step 9c: Create a Custom Entity**
+
+1. **Click "+ Add an entity"** button
+
+2. **Choose entity type:**
+
+   | Type | Description | Best For |
+   |------|-------------|----------|
+   | **Closed list** | Predefined values | Product names, categories |
+   | **Regular expression** | Pattern matching | Order IDs, codes |
+   | **Smart match** | AI-powered extraction | Natural language values |
+
+3. **For Closed List entity:**
+   - Enter **Entity name** (e.g., "ProductType")
+   - Click **"+ Add"** to add list items
+   - Add items: "Standard", "Premium", "Enterprise"
+   - Optionally add **synonyms** for each item
+   - Click **"Save"**
+
+4. **For Regex entity:**
+   - Enter **Entity name** (e.g., "OrderID")
+   - Enter **Pattern** (regex): `ORD-[0-9]{6}`
+   - Test with sample inputs
+   - Click **"Save"**
+
+**Step 9d: Use Entities in Questions**
+
+In a topic, when adding a Question node:
+
+1. In the **"Identify"** dropdown, select your custom entity
+2. The agent will extract and validate user input against the entity
+3. Store the result in a variable for use in the conversation
+
+---
 
 ## Testing Your Agent
 
-### Step 9: Test in the Bot Canvas
+### Step 10: Test in the Bot Canvas
 
-1. Use the **Test bot** panel (bottom-left corner)
-2. Start a conversation to verify:
-   - Trigger phrases work correctly
-   - Conversation flows logically
-   - Variables are captured properly
-   - Actions execute successfully
-   - Error handling works
+**Navigation Path:** Click **"Test"** button (bottom-left corner of any page) OR use Test panel
 
-3. Testing checklist:
-   - [ ] Test all trigger phrases
-   - [ ] Test all conversation branches
-   - [ ] Test edge cases and invalid inputs
-   - [ ] Test integration actions
-   - [ ] Test fallback behaviors
-   - [ ] Test authentication (if enabled)
+**Step 10a: Open the Test Panel**
 
-### Step 10: Review Analytics
+1. **Locate the Test Button:**
+   - At the **bottom-left corner** of the screen, look for **"Test"** or **"Test bot"** button
+   - The button may show a chat bubble icon 💬
+   
+2. **Click the Test button:**
+   - The Test panel will expand from the bottom-right
+   - You'll see a chat interface similar to what users will experience
 
-1. Navigate to **Analytics** tab
-2. Review metrics (after initial testing):
-   - Session information
-   - Topic analytics
-   - Conversation paths
-   - Escalation rate
-   - Resolution rate
-   - Customer satisfaction
+3. **Alternative access:**
+   - While editing a topic, the Test panel may already be visible on the right side
+   - Click the **expand arrow** to maximize it
+
+**Step 10b: Conduct Basic Testing**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  TEST PANEL                                                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  🔄 Reset   📋 Track between topics   👁️ Show all variables       │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  Agent: Hello! I'm here to help. What can I do for you today?      │   │
+│  │  ─────────────────────────────────────────────────────────────────  │   │
+│  │  You: [Type your test message here]                                │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  [Text input field]                         [Send button ➤]        │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Test Panel Features:**
+
+| Feature | Icon/Location | Purpose |
+|---------|---------------|---------|
+| **Reset** | 🔄 Top of panel | Start a new conversation |
+| **Track between topics** | 📋 Toggle at top | See topic transitions |
+| **Show all variables** | 👁️ Toggle at top | View variable values |
+| **Send message** | Text field at bottom | Type test inputs |
+
+**Step 10c: Test Your Topics**
+
+1. **Type a trigger phrase** in the text input at the bottom of the Test panel
+   - **Example**: Type `I need help with billing`
+   
+2. **Press Enter** or click **Send** (➤ button)
+
+3. **Observe the response:**
+   - Does the correct topic trigger?
+   - Is the message appropriate?
+   - Are options/buttons displayed correctly?
+
+4. **Continue the conversation:**
+   - Respond to questions
+   - Test different paths through the conversation
+   - Try edge cases and unexpected inputs
+
+**Step 10d: Use Tracking Features**
+
+To debug your agent:
+
+1. **Enable "Track between topics":**
+   - Click the toggle at the top of the Test panel
+   - This shows which topic is active during the conversation
+
+2. **Enable "Show all variables":**
+   - Click the toggle to view all variable values
+   - This helps verify data is being captured correctly
+
+3. **View conversation path:**
+   - A visual indicator shows which topic/node is currently active
+   - Helpful for debugging complex flows
+
+**Testing Checklist:**
+
+Use this checklist to ensure comprehensive testing:
+
+- [ ] **Trigger phrases**: Test all trigger phrases for each topic
+- [ ] **Conversation branches**: Test all possible paths through each topic
+- [ ] **Edge cases**: Test with unexpected/invalid inputs
+- [ ] **Integration actions**: Test that Power Automate flows execute correctly
+- [ ] **Fallback behavior**: Test what happens with unrecognized inputs
+- [ ] **Authentication**: Test authentication flow (if enabled)
+- [ ] **Variables**: Verify variables capture and store data correctly
+- [ ] **Entity recognition**: Test that entities extract data properly
+- [ ] **Multi-turn conversations**: Test conversations that span multiple exchanges
+
+---
+
+### Step 11: Review Analytics
+
+**Navigation Path:** Left Panel → **Analytics**
+
+**Step 11a: Access Analytics (After Publishing)**
+
+**Note:** Analytics are only available after your agent has been published and used.
+
+1. **Click "Analytics"** in the left navigation panel (📈 icon)
+
+2. **You'll see the Analytics dashboard with:**
+   - Session summary
+   - Engagement metrics
+   - Resolution rates
+   - Topic performance
+
+**Step 11b: Analytics Dashboard Sections**
+
+| Section | Location | What It Shows |
+|---------|----------|---------------|
+| **Summary** | Top of Analytics page | Overall conversation metrics |
+| **Engagement** | Sessions tab | User engagement over time |
+| **Topics** | Topics tab | Performance of individual topics |
+| **Resolution** | Resolution tab | How often issues are resolved |
+| **Escalation** | Escalation tab | Transfers to human agents |
+| **Sessions** | Sessions tab | Individual conversation details |
+
+---
 
 ## Publishing Your Agent
 
-### Step 11: Publish to Channels
+### Step 12: Publish to Channels
 
-1. Click **"Publish"** in the top-right corner
-2. Review changes and click **"Publish"** again
-3. Wait for publishing to complete (usually takes a few minutes)
+**Navigation Path:** Left Panel → **Publish** OR Top-right **"Publish"** button
 
-### Step 12: Configure Channels
+**Step 12a: Navigate to Publish**
 
-After publishing, configure deployment channels:
+1. **Option A:** Click **"Publish"** in the left navigation panel (🚀 icon)
+2. **Option B:** Click the **"Publish"** button in the top-right corner of the editor
 
-#### Demo Website
-- Automatically available for testing
-- Share link with stakeholders
-- No additional configuration needed
+**Step 12b: Review and Publish**
 
-#### Custom Website
-1. Go to **Channels** > **Custom website**
-2. Copy the embed code
-3. Add to your website HTML
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  PUBLISH PAGE                                                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  PUBLISH STATUS                                                     │   │
+│  │  ┌───────────────┐  ┌───────────────┐  ┌───────────────┐           │   │
+│  │  │ Last published│  │ Current draft │  │ Publish now   │           │   │
+│  │  │ Feb 15, 2026  │  │ ⚠️ Changes   │  │ [Button]      │           │   │
+│  │  └───────────────┘  └───────────────┘  └───────────────┘           │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  CHANGES TO PUBLISH                                                 │   │
+│  │  • Topic: Billing Help (modified)                                   │   │
+│  │  • Knowledge: website added                                         │   │
+│  │  • Action: Send Email (new)                                         │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  CHANNELS                                                           │   │
+│  │  Configure where your agent is available                            │   │
+│  │  [Demo website] [Microsoft Teams] [Custom website] [More ▼]        │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-#### Microsoft Teams
-1. Go to **Channels** > **Microsoft Teams**
-2. Click **"Turn on Teams"**
-3. Configure app settings
-4. Submit to Teams app catalog or share directly
+**Publishing Process:**
 
-#### Other Channels
-- **Facebook Messenger**
-- **Azure Bot Service** (for custom channels)
-- **Mobile app** (via Azure Bot Service)
-- **Dynamics 365 Customer Service**
+1. **Review changes** listed in the "Changes to publish" section
+   - Verify all changes are intentional
+   
+2. **Click "Publish"** button (blue/purple button)
 
-### Step 13: Configure Handoff to Live Agent
+3. **Confirm publication** in the dialog that appears
+   - Click **"Publish"** again to confirm
 
-1. Navigate to **Settings** > **Transfer to agent**
-2. Enable agent transfers
-3. Configure handoff system:
-   - Dynamics 365 Omnichannel
-   - Power Virtual Agents standalone
-   - Custom integration
+4. **Wait for publishing** to complete
+   - A progress indicator shows publishing status
+   - Typically takes 1-5 minutes
+   - Status changes to "Published" when complete
 
-4. Set transfer context variables to provide agents with conversation history
+---
+
+### Step 13: Configure Channels
+
+After publishing, configure where users can access your agent.
+
+**Navigation Path:** Publish page → **Channels** section OR Settings → Channels
+
+**Step 13a: Demo Website (Quick Test)**
+
+The Demo Website is automatically available after publishing:
+
+1. On the **Publish** page, find **"Demo website"** under Channels
+2. **Click "Demo website"** 
+3. A dialog opens with:
+   - **Demo URL**: Direct link to test your agent
+   - **QR Code**: For mobile testing
+   - **Share options**: Copy link to share with stakeholders
+4. **Click "Open"** to test in a new browser tab
+5. **Copy the URL** to share with others for testing
+
+**Step 13b: Microsoft Teams Channel**
+
+To deploy your agent to Microsoft Teams:
+
+1. On the Publish page, find **"Microsoft Teams"** under Channels
+2. **Click "Microsoft Teams"**
+3. **Click "Turn on Teams"** (if not already enabled)
+4. Configure Teams settings:
+
+   | Setting | Description | Action |
+   |---------|-------------|--------|
+   | **App name** | Name shown in Teams | Enter display name |
+   | **Short description** | Brief description | Enter description |
+   | **Long description** | Detailed description | Enter details |
+   | **Icon** | App icon in Teams | Upload or use default |
+   | **Privacy URL** | Privacy policy link | Enter URL |
+   | **Terms URL** | Terms of service link | Enter URL |
+
+5. **Click "Save"** to save settings
+
+6. **Publish to Teams:**
+   - **Option A: Submit to admin** - Click "Submit for approval" to add to your org's app catalog
+   - **Option B: Share direct link** - Copy the link to share directly with users
+   - **Option C: Download app** - Download the Teams app package (.zip) for manual installation
+
+**Step 13c: Custom Website (Embed)**
+
+To embed your agent on your own website:
+
+1. On the Publish page, find **"Custom website"** under Channels
+2. **Click "Custom website"**
+3. **Copy the embed code:**
+
+   ```html
+   <!-- Copilot Studio embed code example -->
+   <iframe
+     src="https://web.powerva.microsoft.com/environments/.../bots/.../webchat"
+     frameborder="0"
+     style="width: 100%; height: 500px;">
+   </iframe>
+   ```
+
+4. **Add to your website:**
+   - Paste the embed code into your HTML page
+   - Adjust width/height as needed
+   - Test on your website
+
+**Step 13d: Other Channels**
+
+Additional channels available (in Settings → Channels):
+
+| Channel | Purpose | How to Configure |
+|---------|---------|------------------|
+| **Facebook Messenger** | Facebook integration | Link Facebook page |
+| **Azure Bot Service** | Custom integrations | Connect to Azure Bot |
+| **Mobile app** | Via Azure Bot Service | Use Bot Framework SDK |
+| **Dynamics 365** | Customer service | Connect to Omnichannel |
+| **Slack** | Via Azure Bot Service | Configure Bot connector |
+
+---
+
+### Step 14: Configure Handoff to Live Agent
+
+If you want users to be able to escalate to human agents:
+
+**Navigation Path:** Settings → **Transfer to agent** (or Customer Service → Engagement Hub)
+
+**Step 14a: Navigate to Transfer Settings**
+
+1. **Click "Settings"** in the left navigation panel
+2. **Click "Transfer to agent"** or **"Customer Service"** (depending on your version)
+3. You'll see handoff configuration options
+
+**Step 14b: Configure Handoff**
+
+1. **Enable agent transfers:**
+   - Toggle ON the **"Enable agent transfer"** switch
+
+2. **Choose handoff system:**
+   - **Dynamics 365 Customer Service**: For Dynamics 365 users
+   - **Omnichannel for Customer Service**: Full omnichannel integration
+   - **Custom**: Build your own handoff solution
+
+3. **Configure transfer context:**
+   - Define what information passes to the human agent
+   - Include conversation history, user info, topic context
+
+4. **Set up escalation triggers:**
+   - Define when automatic escalation occurs
+   - Configure the "Escalate" topic behavior
+
+5. **Click "Save"** to apply settings
+
+---
 
 ## Best Practices
 
