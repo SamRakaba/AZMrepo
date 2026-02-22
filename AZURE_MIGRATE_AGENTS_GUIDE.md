@@ -1263,6 +1263,7 @@ Whether you created the flow from a topic or from Power Automate directly, open 
    - Add input: Type: **Text**, Name: `userEmail`
 
 3. **Configure flow outputs** (click on the **Respond to the agent** action):
+   - Verify the **Asynchronous response** toggle is set to **Off** under **Networking** in the action settings
    - Add output: Type: **Text**, Name: `sessionId`
    - Add output: Type: **Text**, Name: `status`
    - Add output: Type: **Text**, Name: `message`
@@ -1293,9 +1294,9 @@ The flow now appears in the agent's list of tools.
 1. Go to **Topics** → **Welcome and Upload Instructions**
 2. In the TRUE branch, locate the **Action** node (if created from a topic) or click the **+** (Add node) icon and select **Add a tool**, then choose **Handle File Upload - Azure Migrate**
 3. Map the inputs on the Action node:
-   - `uploadedFiles` → `Topic.uploadedFiles` (Topic variable). Use the following Power Fx for file data:
+   - `uploadedFiles` → For file data, click the input field, select **Formula** (fx), and enter the following Power Fx expression:
      ```
-     { contentBytes: Topic.uploadedFiles.Content, name: Topic.uploadedFiles.Name }
+     { contentBytes: First(System.Activity.Attachments).Content, name: First(System.Activity.Attachments).Name }
      ```
    - `userId` → `System.User.Id` (System variable)
    - `userEmail` → `System.User.Email` (System variable)
