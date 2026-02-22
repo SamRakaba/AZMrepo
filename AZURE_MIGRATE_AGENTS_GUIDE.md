@@ -779,7 +779,7 @@ Welcome! I'm your Azure Migrate CSV Processor. 🤖
 
 ##### Step 4.1.7: Configure the TRUE Branch (Files Uploaded)
 
-> **Note:** In the current version of Copilot Studio (2025), the **"Call an action"** menu option has been replaced by **"Tools"**. All references in this guide that previously said "Select **Call an action**" should now be read as "hover over **Tools**" and then choose the appropriate sub-option (e.g., **Flow** for Power Automate).
+> **Note:** In the current version of Copilot Studio (2025), the **"Call an action"** menu option has been replaced by **"Add a tool"**. The former **"Actions"** page has been replaced by the **"Tools"** page. Power Automate flows are now added as **tools** — select the **+** (Add node) icon in a topic and choose **Add a tool**, then select a flow or create a **New Agent flow**. For agent-level tools, use the **Tools** page in the left navigation panel.
 
 **Part A: Add a Confirmation Message**
 
@@ -806,17 +806,16 @@ I'll notify you when the consolidated report is ready for download. You can also
 
 **Part B: Add a Power Automate Flow Call Node (Placeholder)**
 
-> **Note:** The Power Automate flow that processes the uploaded files will be fully configured in **Step 5**. The steps below add the flow call node to the canvas now so the topic structure is complete. You will return here to configure the inputs and outputs once the flow is ready.
+> **Note:** The Power Automate agent flow that processes the uploaded files will be fully configured in **Step 5**. The steps below add the flow tool node to the canvas now so the topic structure is complete. You will return here to configure the inputs and outputs once the flow is ready.
 
-6. Click the **+** button below the message node you just added (still inside the TRUE branch)
-7. From the dropdown menu, hover over **Tools** — a submenu will appear
-8. In the **Tools** submenu, click **Flow** (also shown as **Power Automate** in some environments)
-9. A panel opens listing all published flows in your Power Platform environment. You have two options:
-   - **Create a new flow** – Clicking this opens Power Automate in a new browser tab with the Copilot Studio trigger already configured. You will build the processing logic here in Step 5. For now, you may close this tab and return later.
+6. Click the **+** (Add node) button below the message node you just added (still inside the TRUE branch)
+7. From the dropdown menu, select **Add a tool**
+8. You have two options in the tool selection panel:
+   - **New Agent flow** – Select this to create a new agent flow template with the required trigger and response action already configured. You will build the processing logic in Step 5. For now, click **Publish** to save the empty template, then click **Go back to agent**.
    - **Select an existing flow** – If you have already created and published the **Handle File Upload – Azure Migrate** flow (from Step 5), select it here.
-10. If you clicked **Create a new flow** and then closed the tab without finishing, the flow call node will appear in the canvas as an unconfigured placeholder — this is expected and will be completed in Step 5.
+9. If you created a new agent flow template and returned to the topic, an **Action** node will appear in the canvas — this is expected and will be fully configured in Step 5.
 
-> **Tip:** If you prefer to skip adding the flow node for now, you can come back after completing Step 5. Locate the TRUE branch in this topic, click **+**, hover over **Tools**, and select **Flow** to add and configure the call at that point.
+> **Tip:** If you prefer to skip adding the flow tool for now, you can come back after completing Step 5. Locate the TRUE branch in this topic, click **+**, select **Add a tool**, and choose the flow to add and configure it at that point.
 
 ##### Step 4.1.8: Configure the FALSE Branch (No Files Uploaded)
 
@@ -904,7 +903,7 @@ Let me look up the current status of your Azure Migrate data processing.
    - Variable: Select `Global.processingStatus`
    - Value: Click **Formula** and type: `"Processing"` (placeholder)
 
-> **Note:** In Step 5.4 you will replace this placeholder with a real flow call. To add the flow call at that point: click **+**, hover over **Tools**, then click **Flow** from the submenu to select the **Get Processing Status – Azure Migrate** flow.
+> **Note:** In Step 5.4 you will replace this placeholder with a real flow call. To add the flow call at that point: click the **+** (Add node) icon, select **Add a tool**, then choose **New Agent flow** or select the **Get Processing Status – Azure Migrate** flow if already created.
 
 6. Click the **+** button
 7. Select **Add a condition**
@@ -1222,74 +1221,113 @@ Would you like to upload your Azure Migrate files now?
 
 ---
 
-### Step 5: Create Actions (Power Automate Connections)
+### Step 5: Add Power Automate Flows as Tools
 
-Actions connect your agent to Power Automate flows that perform the actual file processing.
+> **Note:** In the current version of Copilot Studio (2025), the former **"Actions"** page has been replaced by the **"Tools"** page. Power Automate flows are now added as **tools** — either at the agent level (available to all topics) or at the topic level (available to a single topic). All instructions below use the current Tools-based workflow. For official reference, see [Add an agent flow to an agent as a tool](https://learn.microsoft.com/en-us/microsoft-copilot-studio/flow-agent).
 
-#### Step 5.1: Navigate to Actions
+Tools connect your agent to Power Automate flows (called **agent flows**) that perform the actual file processing. An agent flow must have:
+- A **When an agent calls the flow** trigger (also shown as **Run a flow from Copilot**)
+- A **Respond to the agent** action (also shown as **Respond to Copilot**)
+- The **Asynchronous response** toggle set to **Off** (under **Networking** in the Respond to the agent action settings)
 
-1. In the left navigation panel, click on **Actions**
-2. The Actions page will display any existing actions
+#### Step 5.1: Create the File Upload Agent Flow
 
-#### Step 5.2: Create the File Upload Action
+##### Option A: Create the Flow from within a Topic (Recommended)
 
-1. Click the **+ Add an action** button
-2. Select **Create a flow** to open Power Automate
-   - This will open a new browser tab with Power Automate
+1. Go to the **Topics** page for your agent
+2. Open the **Welcome and Upload Instructions** topic
+3. In the TRUE branch, find the flow call node placeholder (added in Step 4.1.7 Part B), or click the **+** (Add node) icon below the confirmation message
+4. Select **Add a tool**
+5. On the **Basic tools** tab, select **New Agent flow**
+   - The agent flows designer opens in a new view with a starter template containing the required **When an agent calls the flow** trigger and **Respond to the agent** action
+6. Select **Publish** to save the empty flow template before making changes
 
-3. **In Power Automate**, configure the flow trigger:
-   - The flow will start with a **Run a flow from Copilot** trigger
-   - This trigger receives data from Copilot Studio
+##### Option B: Create the Flow from the Tools Page
 
-4. **Configure flow inputs** (these come from Copilot):
-   - Click on the trigger block
+1. In the left navigation panel of Copilot Studio, click on **Tools**
+2. The Tools page displays all existing tools (flows, connectors, prompts, etc.)
+3. Click **Add a tool**
+4. In the **Add tool** panel, select **Flow** to see available flows
+5. If no suitable flow exists, go to [Power Automate](https://make.powerautomate.com) to create one (see Step 5.1.1 below), then return here to add it
+
+##### Step 5.1.1: Configure Flow Inputs and Actions
+
+Whether you created the flow from a topic or from Power Automate directly, open the flow designer and configure:
+
+1. **Name the flow**: On the **Overview** page, under **Details**, set the name to `Handle File Upload - Azure Migrate`
+
+2. **Configure flow inputs** (click on the **When an agent calls the flow** trigger):
    - Click **+ Add an input**
    - Add input: Type: **File**, Name: `uploadedFiles`
    - Add input: Type: **Text**, Name: `userId`
    - Add input: Type: **Text**, Name: `userEmail`
 
-5. **Configure flow outputs** (these return to Copilot):
-   - Add a **Respond to the agent** action at the end
+3. **Configure flow outputs** (click on the **Respond to the agent** action):
    - Add output: Type: **Text**, Name: `sessionId`
    - Add output: Type: **Text**, Name: `status`
    - Add output: Type: **Text**, Name: `message`
 
-6. **Save the flow** with name: `Handle File Upload - Azure Migrate`
+4. Click **Publish** to save and publish the flow
+5. If you were in the flow designer, click **Go back to agent** to return to Copilot Studio
 
-7. **Return to Copilot Studio** (close the Power Automate tab)
+> **Tip:** The flow must be published before it can be added as a tool. If the flow does not appear in the tool selection list, verify it has the correct trigger (**When an agent calls the flow**) and response action (**Respond to the agent**), and that it has been published.
 
-8. The action should now appear in your Actions list
+#### Step 5.2: Add the File Upload Flow as a Tool
 
-#### Step 5.3: Map Action to Topic
+If you created the flow from within a topic (Option A above), the flow is automatically added as a topic-level tool and an **Action** node appears in your topic. Skip to mapping inputs below.
 
-1. Go back to **Topics** → **Welcome and Upload Instructions**
-2. Find the flow call node placeholder in the TRUE branch (added in Step 4.1.7 Part B)
-3. If the node was not added yet, click **+** below the confirmation message, hover over **Tools**, and select **Flow**
-4. In the flow selection panel, choose **Handle File Upload - Azure Migrate** from the list of published flows
-5. Map the inputs:
-   - `uploadedFiles` → `uploadedFiles` (Topic variable)
-   - `userId` → `System.User.Id` (System variable)
-   - `userEmail` → `System.User.Email` (System variable)
-6. Map the outputs:
-   - `sessionId` → `Global.sessionId`
-   - `status` → `Global.uploadStatus`
-   - `message` → (display in message)
+If you created the flow separately (Option B above), add it as an agent-level tool:
+
+1. In Copilot Studio, go to the **Tools** page
+2. Click **Add a tool**
+3. In the **Add tool** panel, select **Flow**
+4. Select **Handle File Upload - Azure Migrate** from the list of published flows
+5. Click **Add and configure**
+6. Update the **Description** to help the agent understand the flow's purpose (e.g., "Handles file uploads for Azure Migrate CSV processing")
 7. Click **Save**
 
-#### Step 5.4: Create the Check Status Action
+The flow now appears in the agent's list of tools.
 
-1. Click **+ Add an action** → **Create a flow**
-2. Configure the flow:
-   - Trigger: Run a flow from Copilot
-   - Input: `sessionId` (Text)
-   - Output: `processingStatus` (Text), `downloadUrl` (Text), `errorMessage` (Text)
-3. Save as: `Get Processing Status - Azure Migrate`
-4. Return to Copilot Studio
-5. Map this action in the **Check Processing Status** topic:
+#### Step 5.3: Map the Flow to the Upload Topic
+
+1. Go to **Topics** → **Welcome and Upload Instructions**
+2. In the TRUE branch, locate the **Action** node (if created from a topic) or click the **+** (Add node) icon and select **Add a tool**, then choose **Handle File Upload - Azure Migrate**
+3. Map the inputs on the Action node:
+   - `uploadedFiles` → `Topic.uploadedFiles` (Topic variable). Use the following Power Fx for file data:
+     ```
+     { contentBytes: Topic.uploadedFiles.Content, name: Topic.uploadedFiles.Name }
+     ```
+   - `userId` → `System.User.Id` (System variable)
+   - `userEmail` → `System.User.Email` (System variable)
+4. Map the outputs:
+   - `sessionId` → `Global.sessionId`
+   - `status` → `Global.uploadStatus`
+   - `message` → (display in a Message node below the Action node)
+5. Click **Save**
+
+> **Note:** If you added the flow as an agent-level tool (from the Tools page), you can also configure its inputs on the tool's **Details** page. Go to **Tools**, select the flow, and set the **Inputs** section with Power Fx formulas or variable references.
+
+#### Step 5.4: Create the Check Status Agent Flow
+
+1. Open the **Check Processing Status** topic (created in Step 4.2)
+2. Locate the placeholder variable set node (added in Step 4.2.4)
+3. Delete the placeholder node by clicking the **⋮** (menu) icon on it and selecting **Delete**
+4. Click the **+** (Add node) icon in its place and select **Add a tool**
+5. Select **New Agent flow** to create a new flow from within the topic
+6. In the flow designer, configure:
+   - **Flow name**: `Get Processing Status - Azure Migrate`
+   - **Trigger input**: `sessionId` (Text)
+   - **Respond to the agent outputs**: `processingStatus` (Text), `downloadUrl` (Text), `errorMessage` (Text)
+7. Click **Publish** to save and publish the flow
+8. Click **Go back to agent** to return to your topic — a new **Action** node appears
+9. Map the inputs and outputs on the Action node:
    - Input: `sessionId` → `Global.sessionId`
    - Output: `processingStatus` → `Global.processingStatus`
    - Output: `downloadUrl` → `Global.downloadUrl`
    - Output: `errorMessage` → `Global.errorMessage`
+10. Click **Save**
+
+> **Tip:** You can also create this flow from the **Tools** page (**Add a tool** → **Flow** → select it) or directly in [Power Automate](https://make.powerautomate.com). Ensure the flow uses the **When an agent calls the flow** trigger and **Respond to the agent** action so it appears in the tool selection list.
 
 ---
 
@@ -1344,21 +1382,21 @@ Testing Checklist for File Upload Handler:
 
 ---
 
-### Step 7: Configure the File Upload Action (Power Automate)
+### Step 7: Configure the File Upload Flow Logic (Power Automate)
 
-The file upload action stores uploaded files in temporary storage. Choose the appropriate configuration based on your storage choice:
+The file upload agent flow stores uploaded files in temporary storage. Choose the appropriate configuration based on your storage choice:
 
 #### Option A: Azure Blob Storage (Recommended - No SharePoint/OneDrive Required)
 
-1. Go to **Actions** → **"+ Add an action"**
-2. Select **"Create a new flow"**
-3. In Power Automate, configure the flow for Azure Blob Storage:
+1. Go to the **Tools** page, find **Handle File Upload - Azure Migrate**, and click **View flow details** to open the flow in Power Automate (or open it from the **Action** node in your topic)
+2. In the flow designer, add the following actions between the trigger and the **Respond to the agent** action:
+3. Configure the flow for Azure Blob Storage:
 
 **Flow Configuration:**
 ```
-Trigger: Run a flow from Copilot
+Trigger: When an agent calls the flow (Run a flow from Copilot)
 
-Actions:
+Flow Actions:
 1. Compose - Generate Session ID
    Expression: guid()
 
@@ -1386,9 +1424,9 @@ Actions:
 
 #### Option B: SharePoint Storage (Alternative)
 
-1. Go to **Actions** → **"+ Add an action"**
-2. Select **"Create a new flow"**
-3. This opens Power Automate - configure the flow for SharePoint (detailed in [Power Automate Flows](#power-automate-flows) section)
+1. In the flow designer for **Handle File Upload - Azure Migrate**, configure the actions for SharePoint instead of Azure Blob Storage
+2. Add SharePoint connector actions between the trigger and the **Respond to the agent** action
+3. Configure the flow for SharePoint (detailed in [Power Automate Flows](#power-automate-flows) section)
 
 > **Note**: This option requires users to have SharePoint or OneDrive access.
 
