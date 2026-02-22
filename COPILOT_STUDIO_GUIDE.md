@@ -508,7 +508,7 @@ The Topic Editor has these main areas:
    | **Add a condition** | 🔀 | Branch based on logic | Click → set conditions |
    | **Variable management** | 📊 | Set or clear variables | Click → configure variable |
    | **Topic management** | 🔄 | Go to another topic or end | Click → select topic |
-   | **Call an action** | ⚡ | Execute Power Automate flow | Click → select action |
+   | **Tools (Flow/Action)** | ⚡ | Execute Power Automate flow | Click → hover "Tools" → select "Flow" |
    | **Advanced** | ⚙️ | HTTP requests, authentication | Click → configure |
 
 4. **Add a Message Node (example):**
@@ -581,18 +581,18 @@ If you selected **"Create a flow"**:
 1. **Power Automate will open** in a new tab/window
 
 2. **Configure your flow:**
-   - **Trigger**: "When Power Virtual Agents calls a flow" (pre-selected)
+   - **Trigger**: "Run a flow from Copilot" (pre-selected)
    - **Add input parameters**: Define what data the agent passes to the flow
    - **Add actions**: Choose connectors (Office 365, SharePoint, HTTP, etc.)
    - **Add output**: Define what data returns to the agent
 
 3. **Example Flow Structure:**
    ```
-   Trigger: When Copilot calls a flow
+   Trigger: Run a flow from Copilot
    ├── Input: userEmail (text)
    ├── Action: Get user profile (Office 365)
    ├── Action: Send email notification
-   └── Output: confirmation message
+   └── Output: confirmation message (via Respond to the agent)
    ```
 
 4. **Save the flow** by clicking "Save" in Power Automate
@@ -627,7 +627,7 @@ After creating an action:
 
 1. **Go to Topics** → open a topic
 
-2. In the conversation flow, click **"+"** → select **"Call an action"**
+2. In the conversation flow, click **"+"** → hover over **"Tools"** and select **"Flow"**
 
 3. **Select your action** from the list
 
