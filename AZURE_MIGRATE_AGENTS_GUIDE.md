@@ -901,7 +901,7 @@ Let me look up the current status of your Azure Migrate data processing.
 4. Click the **+** button below this message
 5. For now, add a placeholder variable set (the actual flow call will be added in **Step 5.4**):
    - Click **+** and select **Set a variable value**
-   - Variable: Select `processingStatus`
+   - Variable: Select `Global.processingStatus`
    - Value: Click **Formula** and type: `"Processing"` (placeholder)
 
 > **Note:** In Step 5.4 you will replace this placeholder with a real flow call. To add the flow call at that point: click **+**, hover over **Tools**, then click **Flow** from the submenu to select the **Get Processing Status – Azure Migrate** flow.
@@ -909,7 +909,7 @@ Let me look up the current status of your Azure Migrate data processing.
 6. Click the **+** button
 7. Select **Add a condition**
 8. Configure the condition:
-   - Variable: `processingStatus`
+   - Variable: `Global.processingStatus`
    - Operator: **is equal to**
    - Value: `"Complete"`
 
@@ -947,7 +947,7 @@ Would you like to process another set of files?
 1. In the FALSE branch, click **+**
 2. Select **Add a condition**
 3. Configure the condition:
-    - Variable: `processingStatus`
+    - Variable: `Global.processingStatus`
     - Operator: **is equal to**
     - Value: `"Error"`
 
@@ -1238,7 +1238,7 @@ Actions connect your agent to Power Automate flows that perform the actual file 
    - This will open a new browser tab with Power Automate
 
 3. **In Power Automate**, configure the flow trigger:
-   - The flow will start with a **Power Virtual Agents** trigger
+   - The flow will start with a **Run a flow from Copilot** trigger
    - This trigger receives data from Copilot Studio
 
 4. **Configure flow inputs** (these come from Copilot):
@@ -1249,7 +1249,7 @@ Actions connect your agent to Power Automate flows that perform the actual file 
    - Add input: Type: **Text**, Name: `userEmail`
 
 5. **Configure flow outputs** (these return to Copilot):
-   - Add a **Return value(s) to Power Virtual Agents** action at the end
+   - Add a **Respond to the agent** action at the end
    - Add output: Type: **Text**, Name: `sessionId`
    - Add output: Type: **Text**, Name: `status`
    - Add output: Type: **Text**, Name: `message`
@@ -1280,12 +1280,16 @@ Actions connect your agent to Power Automate flows that perform the actual file 
 
 1. Click **+ Add an action** → **Create a flow**
 2. Configure the flow:
-   - Trigger: Power Virtual Agents
+   - Trigger: Run a flow from Copilot
    - Input: `sessionId` (Text)
    - Output: `processingStatus` (Text), `downloadUrl` (Text), `errorMessage` (Text)
 3. Save as: `Get Processing Status - Azure Migrate`
 4. Return to Copilot Studio
-5. Map this action in the **Check Processing Status** topic
+5. Map this action in the **Check Processing Status** topic:
+   - Input: `sessionId` → `Global.sessionId`
+   - Output: `processingStatus` → `Global.processingStatus`
+   - Output: `downloadUrl` → `Global.downloadUrl`
+   - Output: `errorMessage` → `Global.errorMessage`
 
 ---
 
@@ -1352,7 +1356,7 @@ The file upload action stores uploaded files in temporary storage. Choose the ap
 
 **Flow Configuration:**
 ```
-Trigger: When Power Virtual Agents calls a flow
+Trigger: Run a flow from Copilot
 
 Actions:
 1. Compose - Generate Session ID
@@ -1367,7 +1371,7 @@ Actions:
 3. HTTP - Call Orchestrator Flow
    (Detailed in Power Automate Flows section)
 
-4. Return value(s) to Power Virtual Agents:
+4. Respond to the agent:
    - sessionId: @{outputs('Generate_Session_ID')}
    - status: "Processing"
    - message: "Files uploaded successfully. Processing has started."
@@ -3638,7 +3642,7 @@ This flow stores uploaded files in Azure Blob Storage, which does NOT require us
 
 ```
 Name: Handle File Upload (Blob Storage)
-Trigger: Power Virtual Agents (Copilot Studio)
+Trigger: Run a flow from Copilot
 
 Steps:
 1. Parse file upload data from Copilot
@@ -3651,7 +3655,7 @@ Steps:
 **Flow Definition - Azure Blob Storage:**
 
 ```
-Trigger: When Power Virtual Agents calls a flow
+Trigger: Run a flow from Copilot
 
 Actions:
 1. Compose - Generate Session ID
@@ -3688,7 +3692,7 @@ Actions:
      "storageType": "AzureBlob"
    }
 
-5. Return value(s) to Power Virtual Agents:
+5. Respond to the agent:
    - sessionId: @{outputs('Generate_Session_ID')}
    - status: "Processing"
    - message: "Files uploaded successfully to temporary storage. Processing has started."
@@ -3716,7 +3720,7 @@ This flow stores uploaded files in SharePoint. Use this only if users have Share
 
 ```
 Name: Handle File Upload (SharePoint)
-Trigger: Power Virtual Agents (Copilot Studio)
+Trigger: Run a flow from Copilot
 
 Steps:
 1. Parse file upload data from Copilot
@@ -3729,7 +3733,7 @@ Steps:
 **Flow Definition - SharePoint:**
 
 ```
-Trigger: When Power Virtual Agents calls a flow
+Trigger: Run a flow from Copilot
 
 Actions:
 1. Compose - Generate Session ID
@@ -3759,7 +3763,7 @@ Actions:
      "storageType": "SharePoint"
    }
 
-5. Return value(s) to Power Virtual Agents:
+5. Respond to the agent:
    - sessionId: @{outputs('Generate_Session_ID')}
    - status: "Processing"
    - message: "Files uploaded successfully. Processing has started."
@@ -3773,7 +3777,7 @@ This flow checks for completed reports and returns the download URL. Configure b
 
 ```
 Name: Get Processing Status (Blob Storage)
-Trigger: Power Virtual Agents
+Trigger: Run a flow from Copilot
 
 Steps:
 1. Receive sessionId from Copilot
@@ -3785,7 +3789,7 @@ Steps:
 **Flow Definition - Azure Blob Storage:**
 
 ```
-Trigger: When Power Virtual Agents calls a flow
+Trigger: Run a flow from Copilot
 
 Actions:
 1. List blobs (V2) - Azure Blob Storage
@@ -3872,7 +3876,7 @@ For Azure Blob Storage, you have several options to generate secure download URL
 
 ```
 Name: Get Processing Status (SharePoint)
-Trigger: Power Virtual Agents
+Trigger: Run a flow from Copilot
 
 Steps:
 1. Receive userId/sessionId from Copilot
@@ -3883,7 +3887,7 @@ Steps:
 **Flow Definition - SharePoint:**
 
 ```
-Trigger: When Power Virtual Agents calls a flow
+Trigger: Run a flow from Copilot
 
 Actions:
 1. Get files (properties only) - SharePoint
@@ -3924,7 +3928,7 @@ Input Mapping:
 
 Output Mapping:
   - sessionId → Global.sessionId
-  - status → Topic.uploadStatus
+  - status → Global.uploadStatus
   - message → Topic.statusMessage
 ```
 
@@ -3934,8 +3938,8 @@ Input Mapping:
   - sessionId → Global.sessionId
 
 Output Mapping:
-  - status → Topic.processingStatus
-  - downloadUrl → Topic.downloadUrl
+  - status → Global.processingStatus
+  - downloadUrl → Global.downloadUrl
 ```
 
 ---
