@@ -779,17 +779,14 @@ Welcome! I'm your Azure Migrate CSV Processor. 🤖
 
 ##### Step 4.1.7: Configure the TRUE Branch (Files Uploaded)
 
-1. Click the **+** button below the **TRUE** branch
-2. Select **Call an action**
-3. You will see options for actions:
-   - Click **Create a flow** (this will open Power Automate)
-   - OR click **Add existing flow** if you already created the flow
-   - NOTE: We will configure the Power Automate flow in a later section
+> **Note:** In the current version of Copilot Studio (2025), the **"Call an action"** menu option has been replaced by **"Tools"**. All references in this guide that previously said "Select **Call an action**" should now be read as "hover over **Tools**" and then choose the appropriate sub-option (e.g., **Flow** for Power Automate).
 
-4. For now, add a placeholder:
-   - Click the **+** button in the TRUE branch
-   - Select **Send a message**
-   - Type the following message:
+**Part A: Add a Confirmation Message**
+
+1. Click the **+** button below the **TRUE** branch label on the authoring canvas
+2. From the dropdown menu that appears, select **Send a message**
+3. In the message node that appears, click in the text area
+4. Type or paste the following confirmation message exactly:
 
 ```
 ✅ **Files received successfully!**
@@ -805,7 +802,21 @@ I'm now processing your Azure Migrate data. This includes:
 I'll notify you when the consolidated report is ready for download. You can also ask me "Check status" at any time.
 ```
 
-5. Click outside the text area to save
+5. Click outside the text area to save the message
+
+**Part B: Add a Power Automate Flow Call Node (Placeholder)**
+
+> **Note:** The Power Automate flow that processes the uploaded files will be fully configured in **Step 5**. The steps below add the flow call node to the canvas now so the topic structure is complete. You will return here to configure the inputs and outputs once the flow is ready.
+
+6. Click the **+** button below the message node you just added (still inside the TRUE branch)
+7. From the dropdown menu, hover over **Tools** — a submenu will appear
+8. In the **Tools** submenu, click **Flow** (also shown as **Power Automate** in some environments)
+9. A panel opens listing all published flows in your Power Platform environment. You have two options:
+   - **Create a new flow** – Clicking this opens Power Automate in a new browser tab with the Copilot Studio trigger already configured. You will build the processing logic here in Step 5. For now, you may close this tab and return later.
+   - **Select an existing flow** – If you have already created and published the **Handle File Upload – Azure Migrate** flow (from Step 5), select it here.
+10. If you clicked **Create a new flow** and then closed the tab without finishing, the flow call node will appear in the canvas as an unconfigured placeholder — this is expected and will be completed in Step 5.
+
+> **Tip:** If you prefer to skip adding the flow node for now, you can come back after completing Step 5. Locate the TRUE branch in this topic, click **+**, hover over **Tools**, and select **Flow** to add and configure the call at that point.
 
 ##### Step 4.1.8: Configure the FALSE Branch (No Files Uploaded)
 
@@ -888,19 +899,19 @@ Let me look up the current status of your Azure Migrate data processing.
 ```
 
 4. Click the **+** button below this message
-5. Select **Call an action**
-6. This will call the "Get Processing Status" Power Automate flow (configured later)
-7. For now, add a placeholder variable set:
+5. For now, add a placeholder variable set (the actual flow call will be added in **Step 5.4**):
    - Click **+** and select **Set a variable value**
    - Variable: Select `processingStatus`
    - Value: Click **Formula** and type: `"Processing"` (placeholder)
 
-8. Click the **+** button
-9. Select **Add a condition**
-10. Configure the condition:
-    - Variable: `processingStatus`
-    - Operator: **is equal to**
-    - Value: `"Complete"`
+> **Note:** In Step 5.4 you will replace this placeholder with a real flow call. To add the flow call at that point: click **+**, hover over **Tools**, then click **Flow** from the submenu to select the **Get Processing Status – Azure Migrate** flow.
+
+6. Click the **+** button
+7. Select **Add a condition**
+8. Configure the condition:
+   - Variable: `processingStatus`
+   - Operator: **is equal to**
+   - Value: `"Complete"`
 
 ##### Step 4.2.5: Configure TRUE Branch (Processing Complete)
 
@@ -1252,9 +1263,9 @@ Actions connect your agent to Power Automate flows that perform the actual file 
 #### Step 5.3: Map Action to Topic
 
 1. Go back to **Topics** → **Welcome and Upload Instructions**
-2. Find the action placeholder in the TRUE branch
-3. Click on **Call an action**
-4. Select the **Handle File Upload - Azure Migrate** flow
+2. Find the flow call node placeholder in the TRUE branch (added in Step 4.1.7 Part B)
+3. If the node was not added yet, click **+** below the confirmation message, hover over **Tools**, and select **Flow**
+4. In the flow selection panel, choose **Handle File Upload - Azure Migrate** from the list of published flows
 5. Map the inputs:
    - `uploadedFiles` → `uploadedFiles` (Topic variable)
    - `userId` → `System.User.Id` (System variable)
