@@ -1264,9 +1264,11 @@ Whether you created the flow from a topic or from Power Automate directly, open 
 
 3. **Configure flow outputs** (click on the **Respond to the agent** action):
    - Verify the **Asynchronous response** toggle is set to **Off** under **Networking** in the action settings
-   - Add output: Type: **Text**, Name: `sessionId`
-   - Add output: Type: **Text**, Name: `status`
-   - Add output: Type: **Text**, Name: `message`
+   - Add output: Type: **Text**, Name: `sessionId`, Value: (leave empty for now — will be set to a dynamic expression in Step 7)
+   - Add output: Type: **Text**, Name: `status`, Value: `Processing`
+   - Add output: Type: **Text**, Name: `message`, Value: `Files received. Processing will begin shortly.`
+
+> **Important:** Every output defined in the **Respond to the agent** action **must** have a value assigned. If any output value is left blank, the flow will return a response missing that parameter, causing the error: *"The output parameter with name 'message' is missing from the response data. Please refresh the flow, or ensure the flow returns this value."* The placeholder values above will be replaced with dynamic content in **Step 7**.
 
 4. Click **Publish** to save and publish the flow
 5. If you were in the flow designer, click **Go back to agent** to return to Copilot Studio
@@ -1333,6 +1335,8 @@ The flow now appears in the agent's list of tools.
 ---
 
 ### Step 6: Test the Agent
+
+> **Prerequisite:** Before testing the full file upload flow, complete **Step 7** to configure the flow logic in Power Automate. If you test the file upload before Step 7 is completed, the flow will run with only the placeholder output values set in Step 5.1.1. If any output value was left blank, you will receive the error: *"The output parameter with name 'message' is missing from the response data."* You can still test the welcome message and conversation flow (Steps 6.1–6.2) without completing Step 7.
 
 #### Step 6.1: Open the Test Panel
 
@@ -3955,8 +3959,8 @@ Actions:
 ### Connecting Flows to Copilot Studio
 
 1. In Copilot Studio, go to your agent
-2. Navigate to **Actions** → **"+ Add an action"**
-3. Select **"Create a flow"** or **"Add existing flow"**
+2. Navigate to the **Tools** page in the left navigation panel and click **Add a tool**, or within a topic click **+** (Add node) → **Add a tool**
+3. Select **Flow** to add an existing published flow, or select **New Agent flow** to create one
 4. Map the flow inputs/outputs to Copilot variables:
 
 **For File Upload Action:**
@@ -4218,6 +4222,28 @@ After processing the test files above:
 3. Check the SAS token is for the correct container/blob
 4. Verify the SAS token start time is in the past (account for clock skew)
 5. For download links, generate SAS tokens with appropriate expiry (e.g., 24 hours)
+
+#### Issue 8: Output Parameter Missing from Response Data
+
+**Symptoms:**
+- Error: "The output parameter with name 'message' on flow 'Handle File Upload - Azure Migrate' is missing from the response data. Please refresh the flow, or ensure the flow returns this value."
+- Error Code: `FlowActionException`
+
+**Cause:**
+The **Respond to the agent** action in the Power Automate flow has an output parameter defined (e.g., `message`) but no value assigned to it. When the flow runs, it returns a response that is missing that parameter.
+
+**Solutions:**
+1. Open the flow in Power Automate (from the **Tools** page or the **Action** node in your topic)
+2. Click on the **Respond to the agent** action
+3. Verify that **every** output parameter (`sessionId`, `status`, `message`) has a value assigned:
+   - `sessionId`: `@{outputs('Generate_Session_ID')}` (or a dynamic expression)
+   - `status`: `Processing` (or a dynamic expression)
+   - `message`: `Files uploaded successfully. Processing has started.` (or a dynamic expression)
+4. If any output value field is blank, enter a value — even a placeholder string
+5. Click **Publish** to save and republish the flow
+6. Return to Copilot Studio and refresh the topic or click **Save** on the topic to pick up the updated flow
+
+> **Tip:** This error commonly occurs when the flow outputs are defined in Step 5.1.1 but the flow logic (including output values) has not yet been configured in Step 7. Ensure Step 7 is completed before testing the file upload flow.
 
 ### Error Logging
 
