@@ -1269,7 +1269,7 @@ Whether you created the flow from a topic or from Power Automate directly, open 
    - Add output: Type: **Text**, Name: `message`
    - Add output: Type: **Text**, Name: `downloadUrl`
 
-> **Important:** Every output parameter must have a value assigned in the flow logic. If an output may not have a value in certain branches (e.g., `downloadUrl` when processing is still in progress), assign an empty string `""` as the default. Leaving any output blank causes a `FlowActionException` error: "output parameter missing from response data."
+> **Important:** Every output parameter in the **Respond to the agent** action must have a value assigned at runtime. If your flow has conditional branches (e.g., a condition that checks whether processing is complete), ensure **each branch** includes a **Respond to the agent** action with all outputs populated. Use an empty string `""` for text outputs that don't have meaningful data in a given branch. Leaving any output blank causes a `FlowActionException` error: "output parameter missing from response data."
 
 4. Click **Publish** to save and publish the flow
 5. If you were in the flow designer, click **Go back to agent** to return to Copilot Studio
@@ -3742,14 +3742,12 @@ Actions:
    Blob name: @{outputs('Generate_Session_ID')}/@{triggerBody()?['uploadedFiles']?['name']}
    Blob content: @{triggerBody()?['uploadedFiles']?['contentBytes']}
 
-3. Compose - Generate Upload SAS URL
-   Use an HTTP action to call an Azure Function or use the
-   "Create SAS URI by path (V2)" action from the Azure Blob Storage connector:
-     Storage account: <your-storage-account-name>
-     Container: uploads
-     Blob path: @{outputs('Generate_Session_ID')}/@{triggerBody()?['uploadedFiles']?['name']}
-     Permissions: Read
-     Expiry time: @{addHours(utcNow(), 24)}
+3. Create SAS URI by path (V2) - Azure Blob Storage
+   Storage account: <your-storage-account-name>
+   Container: uploads
+   Blob path: @{outputs('Generate_Session_ID')}/@{triggerBody()?['uploadedFiles']?['name']}
+   Permissions: Read
+   Expiry time: @{addHours(utcNow(), 24)}
 
 4. HTTP - Call Orchestrator Flow (runs asynchronously after responding)
    Method: POST
@@ -3768,10 +3766,10 @@ Actions:
    - sessionId: @{outputs('Generate_Session_ID')}
    - status: "Processing"
    - message: "File uploaded successfully to temporary storage. Processing has started."
-   - downloadUrl: @{outputs('Generate_Upload_SAS_URL')}
+   - downloadUrl: @{body('Create_SAS_URI_by_path_(V2)')?['WebUrl']}
 ```
 
-> **Important:** Every output in the **Respond to the agent** action must have a value. The `downloadUrl` output provides the user with a link to the uploaded file. If SAS URL generation is not yet configured, assign an empty string `""` as a placeholder so the flow does not fail.
+> **Important:** Every output in the **Respond to the agent** action must have a value. The `downloadUrl` output provides the user with a link to confirm their uploaded file. If the **Create SAS URI by path (V2)** action is not available in your environment, use an Azure Function to generate SAS URLs (see the [Generating SAS URLs for Download](#generating-sas-urls-for-download) section below) and reference its output instead.
 >
 > **Note:** The trigger input names (`uploadedFiles`, `userId`, `userEmail`) define the keys in `triggerBody()`. Access them as `triggerBody()?['uploadedFiles']`, `triggerBody()?['userId']`, and `triggerBody()?['userEmail']` — not via a nested `user` object.
 
