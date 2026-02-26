@@ -1267,6 +1267,9 @@ Whether you created the flow from a topic or from Power Automate directly, open 
    - Add output: Type: **Text**, Name: `sessionId`
    - Add output: Type: **Text**, Name: `status`
    - Add output: Type: **Text**, Name: `message`
+   - Add output: Type: **Text**, Name: `downloadUrl`
+
+> **Important:** Every output parameter in the **Respond to the agent** action must have a value assigned at runtime. If your flow has conditional branches (e.g., a condition that checks whether processing is complete), ensure **each branch** includes a **Respond to the agent** action with all outputs populated. Use an empty string `""` for text outputs that don't have meaningful data in a given branch. Leaving any output blank causes a `FlowActionException` error: "output parameter missing from response data."
 
 4. Click **Publish** to save and publish the flow
 5. If you were in the flow designer, click **Go back to agent** to return to Copilot Studio
@@ -1293,20 +1296,36 @@ The flow now appears in the agent's list of tools.
 
 1. Go to **Topics** → **Welcome and Upload Instructions**
 2. In the TRUE branch, locate the **Action** node (if created from a topic) or click the **+** (Add node) icon and select **Add a tool**, then choose **Handle File Upload - Azure Migrate**
-3. Map the inputs on the Action node:
+3. **Map the inputs** on the Action node:
    - `uploadedFiles` → For file data, click the input field, select **Formula** (fx), and enter the following Power Fx expression:
      ```
-     { contentBytes: First(System.Activity.Attachments).Content, name: First(System.Activity.Attachments).Name }
+     { contentBytes: Topic.uploadedFiles.Content, name: Topic.uploadedFiles.Name }
      ```
+     > **Note:** Use `Topic.uploadedFiles` (referencing the variable from the Question node) when mapping within a topic. The variable name must match the one you created in Step 4.1.5.
    - `userId` → `System.User.Id` (System variable)
    - `userEmail` → `System.User.Email` (System variable)
-4. Map the outputs:
+4. **Map the outputs** — click each output field and select the corresponding global variable:
    - `sessionId` → `Global.sessionId`
    - `status` → `Global.uploadStatus`
    - `message` → (display in a Message node below the Action node)
+   - `downloadUrl` → `Global.downloadUrl`
 5. Click **Save**
 
-> **Note:** If you added the flow as an agent-level tool (from the Tools page), you can also configure its inputs on the tool's **Details** page. Go to **Tools**, select the flow, and set the **Inputs** section with Power Fx formulas or variable references.
+> **Note:** If you added the flow as an **agent-level tool** (from the Tools page), configure inputs on the tool's **Details** page instead. Go to **Tools**, select the flow, and under **Inputs** use the **Custom value** option with these Power Fx formulas:
+> - **contentBytes**: `First(System.Activity.Attachments).Content`
+> - **name**: `First(System.Activity.Attachments).Name`
+> - **userId**: `System.User.Id`
+> - **userEmail**: `System.User.Email`
+>
+> For a safer pattern that handles cases where no file is attached, use:
+> ```
+> If(
+>     IsEmpty(System.Activity.Attachments),
+>     [],
+>     [{ contentBytes: First(System.Activity.Attachments).Content, name: First(System.Activity.Attachments).Name }])
+> ```
+>
+> **Important:** On the Tools page, file inputs only work with the **Custom value** (Power Fx) option — the **Dynamically fill with AI** option does not work for file inputs.
 
 #### Step 5.4: Create the Check Status Agent Flow
 
@@ -1396,6 +1415,7 @@ The file upload agent flow stores uploaded files in temporary storage. Choose th
 **Flow Configuration:**
 ```
 Trigger: When an agent calls the flow (Run a flow from Copilot)
+  Inputs: uploadedFiles (File), userId (Text), userEmail (Text)
 
 Flow Actions:
 1. Compose - Generate Session ID
@@ -1404,17 +1424,27 @@ Flow Actions:
 2. Create blob (V2) - Azure Blob Storage
    Storage Account: Your Azure Storage Account
    Container: uploads
-   Blob name: @{outputs('Generate_Session_ID')}/@{item()?['name']}
-   Blob content: @{item()?['contentBytes']}
+   Blob name: @{outputs('Generate_Session_ID')}/@{triggerBody()?['uploadedFiles']?['name']}
+   Blob content: @{triggerBody()?['uploadedFiles']?['contentBytes']}
 
-3. HTTP - Call Orchestrator Flow
+3. Create SAS URI by path (V2) - Azure Blob Storage
+   Storage Account: Your Azure Storage Account
+   Container: uploads
+   Blob path: @{outputs('Generate_Session_ID')}/@{triggerBody()?['uploadedFiles']?['name']}
+   Permissions: Read
+   Expiry time: @{addHours(utcNow(), 24)}
+
+4. HTTP - Call Orchestrator Flow
    (Detailed in Power Automate Flows section)
 
-4. Respond to the agent:
+5. Respond to the agent:
    - sessionId: @{outputs('Generate_Session_ID')}
    - status: "Processing"
-   - message: "Files uploaded successfully. Processing has started."
+   - message: "File uploaded successfully. Processing has started."
+   - downloadUrl: @{body('Create_SAS_URI_by_path_(V2)')?['WebUrl']}
 ```
+
+> **Note:** Access the uploaded file data using `triggerBody()?['uploadedFiles']?['name']` and `triggerBody()?['uploadedFiles']?['contentBytes']`. The key names in `triggerBody()` match the input parameter names defined on the trigger. Every output in the **Respond to the agent** action must have a value — use `""` for any output that may not have data.
 
 **Benefits of Azure Blob Storage:**
 - Users do NOT need SharePoint or OneDrive access
@@ -3681,61 +3711,67 @@ This flow stores uploaded files in Azure Blob Storage, which does NOT require us
 
 ```
 Name: Handle File Upload (Blob Storage)
-Trigger: Run a flow from Copilot
+Trigger: When an agent calls the flow (Run a flow from Copilot)
+Inputs: uploadedFiles (File), userId (Text), userEmail (Text)
 
 Steps:
-1. Parse file upload data from Copilot
-2. Generate unique session ID
-3. Save uploaded files to Azure Blob Storage container
+1. Generate unique session ID
+2. Save uploaded file to Azure Blob Storage container
+3. Generate SAS URL for the uploaded blob (for download confirmation)
 4. Call Orchestrator flow with blob URLs
-5. Return status to Copilot agent
+5. Return session ID, status, download URL, and message to the agent
 ```
 
 **Flow Definition - Azure Blob Storage:**
 
 ```
-Trigger: Run a flow from Copilot
+Trigger: When an agent calls the flow
+  Inputs:
+    - uploadedFiles (File)
+    - userId (Text)
+    - userEmail (Text)
 
 Actions:
 1. Compose - Generate Session ID
    Expression: guid()
 
-2. Initialize variable - uploadedBlobUrls
-   Name: uploadedBlobUrls
-   Type: Array
-   Value: []
+2. Create blob (V2) - Azure Blob Storage
+   Connection: Your Azure Blob Storage connection
+   Storage account name: <your-storage-account-name>
+   Container name: uploads
+   Blob name: @{outputs('Generate_Session_ID')}/@{triggerBody()?['uploadedFiles']?['name']}
+   Blob content: @{triggerBody()?['uploadedFiles']?['contentBytes']}
 
-3. Apply to each uploaded file:
-   
-   a. Create blob (V2) - Azure Blob Storage
-      Connection: Your Azure Blob Storage connection
-      Storage account name: <your-storage-account-name>
-      Container name: uploads
-      Blob name: @{outputs('Generate_Session_ID')}/@{item()?['name']}
-      Blob content: @{item()?['contentBytes']}
-   
-   b. Append to array variable
-      Name: uploadedBlobUrls
-      Value: @{body('Create_blob_(V2)')?['Path']}
+3. Create SAS URI by path (V2) - Azure Blob Storage
+   Storage account: <your-storage-account-name>
+   Container: uploads
+   Blob path: @{outputs('Generate_Session_ID')}/@{triggerBody()?['uploadedFiles']?['name']}
+   Permissions: Read
+   Expiry time: @{addHours(utcNow(), 24)}
 
-4. HTTP - Call Orchestrator Flow
+4. HTTP - Call Orchestrator Flow (runs asynchronously after responding)
    Method: POST
    URI: (Orchestrator flow HTTP trigger URL)
    Headers:
      Content-Type: application/json
    Body: {
-     "fileUrls": @{variables('uploadedBlobUrls')},
+     "fileUrls": ["@{body('Create_blob_(V2)')?['Path']}"],
      "sessionId": "@{outputs('Generate_Session_ID')}",
-     "userEmail": "@{triggerBody()?['user']?['email']}",
-     "userId": "@{triggerBody()?['user']?['id']}",
+     "userEmail": "@{triggerBody()?['userEmail']}",
+     "userId": "@{triggerBody()?['userId']}",
      "storageType": "AzureBlob"
    }
 
 5. Respond to the agent:
    - sessionId: @{outputs('Generate_Session_ID')}
    - status: "Processing"
-   - message: "Files uploaded successfully to temporary storage. Processing has started."
+   - message: "File uploaded successfully to temporary storage. Processing has started."
+   - downloadUrl: @{body('Create_SAS_URI_by_path_(V2)')?['WebUrl']}
 ```
+
+> **Important:** Every output in the **Respond to the agent** action must have a value. The `downloadUrl` output provides the user with a link to confirm their uploaded file. If the **Create SAS URI by path (V2)** action is not available in your environment, use an Azure Function to generate SAS URLs (see the [Generating SAS URLs for Download](#generating-sas-urls-for-download) section below) and reference its output instead.
+>
+> **Note:** The trigger input names (`uploadedFiles`, `userId`, `userEmail`) define the keys in `triggerBody()`. Access them as `triggerBody()?['uploadedFiles']`, `triggerBody()?['userId']`, and `triggerBody()?['userEmail']` — not via a nested `user` object.
 
 **Azure Blob Storage Connection Setup:**
 1. In Power Automate, add a new connection for **Azure Blob Storage**
@@ -3759,20 +3795,26 @@ This flow stores uploaded files in SharePoint. Use this only if users have Share
 
 ```
 Name: Handle File Upload (SharePoint)
-Trigger: Run a flow from Copilot
+Trigger: When an agent calls the flow (Run a flow from Copilot)
+Inputs: uploadedFiles (File), userId (Text), userEmail (Text)
 
 Steps:
-1. Parse file upload data from Copilot
+1. Generate unique session ID
 2. Create session folder in SharePoint
-3. Save uploaded files to SharePoint
-4. Call Orchestrator flow with file URLs
-5. Return status to Copilot agent
+3. Save uploaded file to SharePoint
+4. Create sharing link for download confirmation
+5. Call Orchestrator flow with file URLs
+6. Return session ID, status, download URL, and message to the agent
 ```
 
 **Flow Definition - SharePoint:**
 
 ```
-Trigger: Run a flow from Copilot
+Trigger: When an agent calls the flow
+  Inputs:
+    - uploadedFiles (File)
+    - userId (Text)
+    - userEmail (Text)
 
 Actions:
 1. Compose - Generate Session ID
@@ -3782,31 +3824,37 @@ Actions:
    Site: Your SharePoint Site
    Folder Path: /Uploads/@{outputs('Generate_Session_ID')}
 
-3. Apply to each uploaded file:
-   - Create file (SharePoint)
-     Site: Your Site
-     Folder: /Uploads/@{outputs('Generate_Session_ID')}
-     File Name: @{item()?['name']}
-     Content: @{item()?['contentBytes']}
-   
-   - Append file URL to array
+3. Create file (SharePoint)
+   Site: Your Site
+   Folder: /Uploads/@{outputs('Generate_Session_ID')}
+   File Name: @{triggerBody()?['uploadedFiles']?['name']}
+   Content: @{triggerBody()?['uploadedFiles']?['contentBytes']}
 
-4. HTTP - Call Orchestrator Flow
+4. Create sharing link for a file or folder (SharePoint)
+   Site: Your Site
+   Item Id: @{body('Create_file')?['ItemId']}
+   Link type: View
+   Link scope: Organization (or Anonymous if external access needed)
+
+5. HTTP - Call Orchestrator Flow
    Method: POST
    URI: (Orchestrator flow HTTP trigger URL)
    Body: {
-     "fileUrls": @{variables('uploadedFileUrls')},
+     "fileUrls": ["@{body('Create_file')?['Path']}"],
      "sessionId": "@{outputs('Generate_Session_ID')}",
-     "userEmail": "@{triggerBody()?['user']?['email']}",
-     "userId": "@{triggerBody()?['user']?['id']}",
+     "userEmail": "@{triggerBody()?['userEmail']}",
+     "userId": "@{triggerBody()?['userId']}",
      "storageType": "SharePoint"
    }
 
-5. Respond to the agent:
+6. Respond to the agent:
    - sessionId: @{outputs('Generate_Session_ID')}
    - status: "Processing"
-   - message: "Files uploaded successfully. Processing has started."
+   - message: "File uploaded successfully. Processing has started."
+   - downloadUrl: @{body('Create_sharing_link')?['link']?['webUrl']}
 ```
+
+> **Note:** Access trigger inputs using the names defined on the trigger: `triggerBody()?['uploadedFiles']`, `triggerBody()?['userEmail']`, `triggerBody()?['userId']`. Every output in the **Respond to the agent** action must have a value assigned.
 
 ### Flow 2: Get Processing Status
 
@@ -3816,19 +3864,23 @@ This flow checks for completed reports and returns the download URL. Configure b
 
 ```
 Name: Get Processing Status (Blob Storage)
-Trigger: Run a flow from Copilot
+Trigger: When an agent calls the flow (Run a flow from Copilot)
+Inputs: sessionId (Text)
+Outputs: processingStatus (Text), downloadUrl (Text), errorMessage (Text)
 
 Steps:
-1. Receive sessionId from Copilot
+1. Receive sessionId from the agent
 2. List blobs in reports container for the session
 3. Generate SAS URL for download if report exists
-4. Return status and download URL
+4. Return status, download URL, and error message to the agent
 ```
 
 **Flow Definition - Azure Blob Storage:**
 
 ```
-Trigger: Run a flow from Copilot
+Trigger: When an agent calls the flow
+  Inputs:
+    - sessionId (Text)
 
 Actions:
 1. List blobs (V2) - Azure Blob Storage
@@ -3843,28 +3895,32 @@ Actions:
 3. Condition: Report exists?
    If: length(body('Filter_array')) > 0
    
-   Yes:
+   Yes branch:
      4. Compose - Get first blob name
         @{first(body('Filter_array'))?['Name']}
      
-     5. Get blob content using path (V2) - Azure Blob Storage
+     5. Create SAS URI by path (V2) - Azure Blob Storage
+        Storage account: <your-storage-account-name>
         Container: reports
-        Blob: @{outputs('Get_first_blob_name')}
+        Blob path: @{outputs('Get_first_blob_name')}
+        Permissions: Read
+        Expiry time: @{addHours(utcNow(), 24)}
      
-     6. Compose - Generate SAS URL (or use Azure Function for SAS generation)
-        Expression: Create a SAS token with read permission, valid for 24 hours
-     
-     7. Return to Copilot:
-        - status: "Complete"
-        - downloadUrl: @{outputs('Generate_SAS_URL')}
-        - message: "Your report is ready for download!"
+     6. Respond to the agent:
+        - processingStatus: "Complete"
+        - downloadUrl: @{body('Create_SAS_URI_by_path_(V2)')?['WebUrl']}
+        - errorMessage: ""
    
-   No:
-     8. Return to Copilot:
-        - status: "Processing"
+   No branch:
+     7. Respond to the agent:
+        - processingStatus: "Processing"
         - downloadUrl: ""
-        - message: "Your files are still being processed. Please check back shortly."
+        - errorMessage: ""
 ```
+
+> **Important:** Both branches of the condition must include a **Respond to the agent** action with **all** output parameters populated. Use empty strings `""` for outputs that have no value in a given branch. Missing output values cause a `FlowActionException` error.
+>
+> **Tip:** The **Create SAS URI by path (V2)** action is a built-in Azure Blob Storage connector action in Power Automate that generates a SAS URL without custom code. If this action is not available in your environment, use one of the alternatives below.
 
 **Generating SAS URLs for Download:**
 
@@ -3915,18 +3971,22 @@ For Azure Blob Storage, you have several options to generate secure download URL
 
 ```
 Name: Get Processing Status (SharePoint)
-Trigger: Run a flow from Copilot
+Trigger: When an agent calls the flow (Run a flow from Copilot)
+Inputs: sessionId (Text)
+Outputs: processingStatus (Text), downloadUrl (Text), errorMessage (Text)
 
 Steps:
-1. Receive userId/sessionId from Copilot
+1. Receive sessionId from the agent
 2. Check for completed report in SharePoint
-3. Return status and download URL if complete
+3. Return status, download URL, and error message to the agent
 ```
 
 **Flow Definition - SharePoint:**
 
 ```
-Trigger: Run a flow from Copilot
+Trigger: When an agent calls the flow
+  Inputs:
+    - sessionId (Text)
 
 Actions:
 1. Get files (properties only) - SharePoint
@@ -3938,48 +3998,92 @@ Actions:
 2. Condition: Files exist?
    If: length(body('Get_files')?['value']) > 0
    
-   Yes:
-     3. Create sharing link for a file
-        File: First file in results
+   Yes branch:
+     3. Create sharing link for a file or folder (SharePoint)
+        Site: Your Site
+        Item Id: @{first(body('Get_files')?['value'])?['Id']}
+        Link type: View
      
-     4. Return to Copilot:
-        - status: "Complete"
+     4. Respond to the agent:
+        - processingStatus: "Complete"
         - downloadUrl: @{body('Create_sharing_link')?['link']?['webUrl']}
+        - errorMessage: ""
    
-   No:
-     5. Return to Copilot:
-        - status: "Processing"
+   No branch:
+     5. Respond to the agent:
+        - processingStatus: "Processing"
         - downloadUrl: ""
+        - errorMessage: ""
 ```
+
+> **Important:** Both branches must include a **Respond to the agent** action with all output parameters populated. The output parameter names (`processingStatus`, `downloadUrl`, `errorMessage`) must match those defined in Step 5.4.
 
 ### Connecting Flows to Copilot Studio
 
-1. In Copilot Studio, go to your agent
-2. Navigate to **Actions** → **"+ Add an action"**
-3. Select **"Create a flow"** or **"Add existing flow"**
-4. Map the flow inputs/outputs to Copilot variables:
+> **Note:** In the current version of Copilot Studio (2025), the former **"Actions"** page has been replaced by the **"Tools"** page. Power Automate flows are now added as **tools**. For official reference, see [Add an agent flow to an agent as a tool](https://learn.microsoft.com/en-us/microsoft-copilot-studio/flow-agent).
 
-**For File Upload Action:**
+#### Option A: Add from the Tools Page (Agent-Level Tool)
+
+1. In Copilot Studio, select **Agents**, then select your agent
+2. Go to the **Tools** page and click **Add a tool**
+3. In the **Add tool** panel, select **Flow** to list available agent flows
+4. Select the flow (e.g., **Handle File Upload - Azure Migrate**) and click **Add and configure**
+5. On the tool's **Details** page, configure **Inputs** using Power Fx formulas (see input mapping below)
+6. Click **Save**
+
+#### Option B: Add from within a Topic (Topic-Level Tool)
+
+1. Open the topic where you want to call the flow
+2. Click the **+** (Add node) icon below any node, and select **Add a tool**
+3. Select the flow from the list — a new **Action** node appears in the topic
+4. Map inputs and outputs directly on the Action node
+
+#### Input/Output Mapping
+
+**For File Upload Flow (when added as a tool from the Tools page):**
+
+> **Important:** On the Tools page, file inputs must be set using the **Custom value** (Power Fx formula) option — the **Dynamically fill with AI** option does not work for file inputs.
+
 ```
 Input Mapping:
-  - uploadedFiles → (From Copilot file upload question)
-  - user → (System variable: User)
+  - contentBytes → First(System.Activity.Attachments).Content
+  - name         → First(System.Activity.Attachments).Name
+  - userId       → System.User.Id
+  - userEmail    → System.User.Email
 
 Output Mapping:
-  - sessionId → Global.sessionId
-  - status → Global.uploadStatus
-  - message → Topic.statusMessage
-```
-
-**For Status Check Action:**
-```
-Input Mapping:
-  - sessionId → Global.sessionId
-
-Output Mapping:
-  - status → Global.processingStatus
+  - sessionId   → Global.sessionId
+  - status      → Global.uploadStatus
+  - message     → (display in a Message node)
   - downloadUrl → Global.downloadUrl
 ```
+
+**For File Upload Flow (when added as an Action node within a topic):**
+```
+Input Mapping:
+  - uploadedFiles → { contentBytes: Topic.uploadedFiles.Content, name: Topic.uploadedFiles.Name }
+  - userId        → System.User.Id
+  - userEmail     → System.User.Email
+
+Output Mapping:
+  - sessionId   → Global.sessionId
+  - status      → Global.uploadStatus
+  - message     → (display in a Message node)
+  - downloadUrl → Global.downloadUrl
+```
+
+**For Status Check Flow:**
+```
+Input Mapping:
+  - sessionId → Global.sessionId
+
+Output Mapping:
+  - processingStatus → Global.processingStatus
+  - downloadUrl      → Global.downloadUrl
+  - errorMessage     → Global.errorMessage
+```
+
+> **Important:** Every output parameter in the **Respond to the agent** action must have a value assigned. Leaving any output value blank causes a `FlowActionException` error with the message "output parameter missing from response data." Always assign a value — use an empty string `""` for text outputs that may not have data yet.
 
 ---
 
