@@ -15,7 +15,7 @@ This guide provides step-by-step instructions for creating and configuring a Mic
 4. [Configuring Agent Capabilities](#configuring-agent-capabilities)
    - [Adding Knowledge Sources](#step-6-add-knowledge-sources)
    - [Defining Topics](#step-7-define-topics)
-   - [Creating Actions](#step-8-create-actions-and-integrations)
+   - [Creating Tools](#step-8-create-tools-and-integrations)
    - [Configuring Entities](#step-9-configure-entities)
 5. [Testing Your Agent](#testing-your-agent)
 6. [Publishing Your Agent](#publishing-your-agent)
@@ -90,7 +90,7 @@ The Copilot Studio portal has the following main areas:
 │  │ 📚 Knowledge  ││  │                                                 │   │
 │  │ 💬 Topics     ││  │                                                 │   │
 │  │ 📊 Entities   ││  │                                                 │   │
-│  │ ⚡ Actions    ││  │                                                 │   │
+│  │ ⚡ Tools      ││  │                                                 │   │
 │  │ 📈 Analytics  ││  │                                                 │   │
 │  │ 🚀 Publish    ││  │                                                 │   │
 │  │ ⚙️ Settings   ││  │                                                 │   │
@@ -112,8 +112,8 @@ The Copilot Studio portal has the following main areas:
 | 📚 | **Knowledge** | Below Copilots | Manage knowledge sources (appears when editing an agent) |
 | 💬 | **Topics** | Below Knowledge | Create and manage conversation topics (appears when editing an agent) |
 | 📊 | **Entities** | Below Topics | Define custom entities for data extraction (appears when editing an agent) |
-| ⚡ | **Actions** | Below Entities | Configure Power Automate flows and connectors (appears when editing an agent) |
-| 📈 | **Analytics** | Below Actions | View performance metrics and usage statistics |
+| ⚡ | **Tools** | Below Entities | Configure Power Automate flows, connectors, and prompts (appears when editing an agent) |
+| 📈 | **Analytics** | Below Tools | View performance metrics and usage statistics |
 | 🚀 | **Publish** | Below Analytics | Deploy your agent to channels |
 | ⚙️ | **Settings** | Bottom of left panel | Configure agent settings, authentication, and integrations |
 
@@ -140,7 +140,7 @@ Use these navigation paths to quickly find common features:
 | Agent Settings | Left Panel → **Settings** → Select settings category |
 | Add Knowledge | Left Panel → **Knowledge** → **"+ Add knowledge"** |
 | Create Topic | Left Panel → **Topics** → **"+ Add a topic"** |
-| Add Action | Left Panel → **Actions** → **"+ Add an action"** |
+| Add Tool | Left Panel → **Tools** → **"Add a tool"** |
 | Test Agent | Click **"Test"** button (bottom-left corner) |
 | Publish Agent | Left Panel → **Publish** OR Top-right **"Publish"** button |
 | View Analytics | Left Panel → **Analytics** |
@@ -239,7 +239,7 @@ After selecting your creation method, you'll see a configuration panel:
 │  📚 Knowledge     │  │                                                 │   │
 │  💬 Topics        │  │  [Quick setup cards showing next steps]         │   │
 │  📊 Entities      │  │                                                 │   │
-│  ⚡ Actions       │  │  • Add knowledge sources                        │   │
+│  ⚡ Tools         │  │  • Add knowledge sources                        │   │
 │  📈 Analytics     │  │  • Create topics                                │   │
 │  🚀 Publish       │  │  • Configure settings                           │   │
 │  ⚙️ Settings      │  │  • Test your agent                              │   │
@@ -548,92 +548,106 @@ Message: "Is there anything else I can help with?"
 
 ---
 
-### Step 8: Create Actions and Integrations
+### Step 8: Create Tools and Integrations
 
-Actions connect your agent to external services and automate tasks.
+> **Note:** In the current version of Copilot Studio (2025), the former **"Actions"** page has been replaced by the **"Tools"** page. Power Automate flows are now added as **tools**. For official reference, see [Add an agent flow to an agent as a tool](https://learn.microsoft.com/en-us/microsoft-copilot-studio/flow-agent).
 
-**Navigation Path:** Left Panel → **Actions** → **"+ Add an action"**
+Tools connect your agent to external services and automate tasks using Power Automate flows, connectors, and prompts.
 
-**Step 8a: Navigate to Actions**
+**Navigation Path:** Left Panel → **Tools** → **"Add a tool"**
 
-1. In the left navigation panel, **click "Actions"** (⚡ icon)
-2. The Actions page will open showing:
-   - Existing actions (if any)
-   - **"+ Add an action"** button
+**Step 8a: Navigate to Tools**
 
-**Step 8b: Add a New Action**
+1. In the left navigation panel, **click "Tools"** (⚡ icon)
+2. The Tools page will open showing:
+   - Existing tools (flows, connectors, prompts)
+   - **"Add a tool"** button
 
-1. **Click "+ Add an action"** button
+**Step 8b: Add a New Tool**
 
-2. **Choose action type** from the dialog:
+1. **Click "Add a tool"** button
 
-   | Action Type | Description | Navigation |
-   |-------------|-------------|------------|
-   | **Create a flow** | Create new Power Automate flow | Click "Create a flow" |
-   | **Choose from existing flows** | Use existing flow | Click "Choose an existing flow" |
-   | **Use a connector** | Pre-built service connectors | Click "Use a connector" |
-   | **Custom prompt** | AI-powered custom action | Click "Custom prompt" |
+2. **Choose tool type** from the Add tool panel:
 
-**Step 8c: Create a Power Automate Flow**
+   | Tool Type | Description | Navigation |
+   |-----------|-------------|------------|
+   | **Flow** | Add a Power Automate agent flow | Select "Flow" to list available flows |
+   | **Connector** | Pre-built service connectors | Select a connector from the list |
+   | **Prompt** | AI-powered custom prompts | Select "Prompt" |
 
-If you selected **"Create a flow"**:
+**Step 8c: Create a Power Automate Agent Flow**
 
-1. **Power Automate will open** in a new tab/window
+You can create an agent flow from within a topic or from the Tools page:
 
-2. **Configure your flow:**
-   - **Trigger**: "Run a flow from Copilot" (pre-selected)
-   - **Add input parameters**: Define what data the agent passes to the flow
-   - **Add actions**: Choose connectors (Office 365, SharePoint, HTTP, etc.)
-   - **Add output**: Define what data returns to the agent
+**Option 1 — Create from within a topic (Recommended):**
 
-3. **Example Flow Structure:**
+1. Open the topic where you want to call the flow
+2. Click the **+** (Add node) icon below any node, and select **Add a tool**
+3. On the **Basic tools** tab, select **New Agent flow**
+4. The agent flows designer opens with the required **When an agent calls the flow** trigger and **Respond to the agent** action
+5. Configure input parameters on the trigger and output parameters on the response action
+6. Add your flow logic (connectors, actions) between the trigger and the response
+7. Click **Publish** to save the flow
+8. Click **Go back to agent** — a new **Action** node appears in your topic
+
+**Option 2 — Create separately in Power Automate:**
+
+1. Go to [Power Automate](https://make.powerautomate.com) and create a new **Instant cloud flow**
+2. Use the **When an agent calls the flow** (Run a flow from Copilot) trigger
+3. Add your flow logic
+4. End with the **Respond to the agent** action
+5. Ensure the **Asynchronous response** toggle is set to **Off**
+6. Save and publish the flow
+7. Return to Copilot Studio → **Tools** → **Add a tool** → **Flow** → select the flow
+
+**Example Flow Structure:**
    ```
-   Trigger: Run a flow from Copilot
-   ├── Input: userEmail (text)
+   Trigger: When an agent calls the flow
+   ├── Input: userEmail (Text)
    ├── Action: Get user profile (Office 365)
    ├── Action: Send email notification
-   └── Output: confirmation message (via Respond to the agent)
+   └── Respond to the agent:
+       └── Output: confirmationMessage (Text)
    ```
 
-4. **Save the flow** by clicking "Save" in Power Automate
+> **Important:** Agent flows must respond within 100 seconds. The **Asynchronous response** toggle must be **Off**. Every output parameter in the **Respond to the agent** action must have a value assigned.
 
-5. **Return to Copilot Studio** - the action will appear in your Actions list
+**Step 8d: Add a Connector as a Tool**
 
-**Step 8d: Use a Connector**
+To add a connector directly as a tool:
 
-If you selected **"Use a connector"**:
+1. Go to **Tools** → **Add a tool**
+2. **Browse available connectors** in the tool panel
 
-1. **Browse available connectors** in the connector gallery
-
-2. **Popular connectors:**
+3. **Popular connectors:**
    - **Office 365 Outlook**: Send emails
    - **SharePoint**: Manage files and lists
    - **Microsoft Teams**: Post messages
    - **HTTP**: Call external APIs
    - **Dataverse**: Database operations
 
-3. **Select a connector** by clicking on it
+4. **Select a connector** by clicking on it
 
-4. **Configure the action:**
+5. **Configure the tool:**
    - Set up authentication (if required)
    - Map input/output parameters
    - Test the connection
 
-5. **Click "Add"** to save the action
+6. **Click "Add to agent"** to save the tool
 
-**Step 8e: Use Actions in Topics**
+**Step 8e: Use Tools in Topics**
 
-After creating an action:
+After adding a tool to your agent:
 
 1. **Go to Topics** → open a topic
 
-2. In the conversation flow, click **"+"** → hover over **"Tools"** and select **"Flow"**
+2. In the conversation flow, click **"+"** (Add node) → select **"Add a tool"**
 
-3. **Select your action** from the list
+3. **Select your tool** (flow or connector) from the list
 
-4. **Map inputs**: Connect topic variables to action inputs
+4. **Map inputs**: Connect topic variables or Power Fx formulas to tool inputs
 
-5. **Map outputs**: Store action outputs in topic variables
+5. **Map outputs**: Store tool outputs in topic or global variables
 
 6. **Continue the flow** with a message using the output
 
@@ -1091,8 +1105,11 @@ If you want users to be able to escalate to human agents:
 - Review conversation logs
 - Ensure channel configuration is correct
 
-### Actions Failing
-- Verify Power Automate flow is active
+### Tools / Flows Failing
+- Verify Power Automate agent flow is published and active
+- Ensure the flow has the **When an agent calls the flow** trigger and **Respond to the agent** action
+- Verify the **Asynchronous response** toggle is set to **Off**
+- Check that all output parameters have values assigned
 - Check authentication credentials
 - Review input/output parameter mapping
 - Check error messages in flow run history
