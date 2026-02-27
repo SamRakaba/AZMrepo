@@ -97,7 +97,7 @@ The Azure Migrate export files contain the following sheets:
 │  • Accepts CSV file uploads                                                 │
 │  • Validates file format                                                    │
 │  • Stores files in temporary storage (Azure Blob Storage recommended)       │
-│  • Triggers processing workflow                                             │
+│  • Coordinates LLM-based processing via topic redirects                     │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                     ┌─────────────────┼─────────────────┐
@@ -140,7 +140,7 @@ The Azure Migrate export files contain the following sheets:
 
 | Component | Purpose | Technology |
 |-----------|---------|------------|
-| File Upload Handler | Accept and validate CSV files | Copilot Studio + Power Automate |
+| File Upload Handler | Accept CSV files, store in temp storage, coordinate processing topics | Copilot Studio + Power Automate (file storage only) |
 | Temporary Storage | Store uploaded files temporarily | Azure Blob Storage (recommended) or SharePoint |
 | App Inventory Processor | LLM-based application consolidation and noise detection | Copilot Studio LLM + Power Automate (data read only) |
 | SQL Server Processor | LLM-based SQL Server consolidation and version grouping | Copilot Studio LLM + Power Automate (data read only) |
@@ -3837,8 +3837,8 @@ In the **If no** branch:
 | Flow Name | Type | Purpose | Storage Option |
 |-----------|------|---------|----------------|
 | `Azure Migrate Processing Orchestrator` | Parent/Main | Coordinates all processing (optional with LLM-first approach) | Both |
-| `Handle File Upload (Blob Storage)` | Handler | Saves files to Azure Blob Storage | Option A |
-| `Handle File Upload (SharePoint)` | Handler | Saves files to SharePoint | Option B |
+| `Handle File Upload (Blob Storage)` | Agent Tool | Saves files to Azure Blob Storage and returns file path | Option A |
+| `Handle File Upload (SharePoint)` | Agent Tool | Saves files to SharePoint and returns file path | Option B |
 | `Read Application Inventory Data` | Agent Tool | Reads raw application data for LLM analysis | Both |
 | `Read SQL Server Inventory Data` | Agent Tool | Reads raw SQL Server data for LLM analysis | Both |
 | `Read Web App Inventory Data` | Agent Tool | Reads raw web app data for LLM analysis | Both |
@@ -3887,23 +3887,23 @@ Because each HTTP action's URI comes from the target flow's trigger, you must **
    - `Read SQL Server Inventory Data`
    - `Read Web App Inventory Data`
    - `Generate Consolidated Report`
-2. **Orchestrator flow** (optional — `Azure Migrate Processing Orchestrator`) — paste the tool flow URLs into its HTTP actions, then save to generate its own URL
-3. **File Upload Handler flow** (`Handle File Upload`) — paste the Orchestrator's URL into its HTTP action
+2. **Orchestrator flow** (optional — `Azure Migrate Processing Orchestrator`) — only needed for multi-file batch processing; paste the tool flow URLs into its HTTP actions, then save to generate its own URL
+3. **File Upload Handler flow** (`Handle File Upload`) — in the LLM-first approach, this flow does NOT call the Orchestrator. It stores the file and returns the file path to the agent, which coordinates processing via topic redirects
 
 > **Note**: In the LLM-first approach, the agent tool flows use the "When an agent calls the flow" trigger and are registered directly as Tools in Copilot Studio. The Orchestrator flow is optional and only needed for multi-file batch processing or flow-level error handling.
 
 #### URI value summary per HTTP action
 
-> **Note**: The `Read *` flows created in Agents 2, 3, and 4 use the "When an agent calls the flow" trigger (for Copilot Studio Tool integration). If you use the Power Automate Orchestrator, you need separate HTTP-triggered versions of these flows. The table below assumes HTTP-triggered versions exist. If you use only the Copilot agent's topic-based orchestration (recommended with the LLM-first approach), you do not need these HTTP action URIs.
+> **Note**: The `Read *` flows created in Agents 2, 3, and 4 use the "When an agent calls the flow" trigger (for Copilot Studio Tool integration). The `Handle File Upload` flows also use this trigger and return the file path to the agent — they do **not** call the Orchestrator in the LLM-first approach. If you use the optional Power Automate Orchestrator for multi-file batch processing, you need separate HTTP-triggered versions of the data extraction flows. If you use only the Copilot agent's topic-based orchestration (recommended), you do not need these HTTP action URIs for the File Upload or data extraction flows.
 
 | Calling Flow | HTTP Action Name | URI Value (paste from) |
 |-------------|-----------------|----------------------|
-| Handle File Upload (Blob Storage) | HTTP - Call Orchestrator Flow | HTTP POST URL from `Azure Migrate Processing Orchestrator` |
-| Handle File Upload (SharePoint) | HTTP - Call Orchestrator Flow | HTTP POST URL from `Azure Migrate Processing Orchestrator` |
-| Azure Migrate Processing Orchestrator | Call Application Processor | HTTP POST URL from HTTP-triggered version of `Read Application Inventory Data` |
-| Azure Migrate Processing Orchestrator | Call SQL Processor | HTTP POST URL from HTTP-triggered version of `Read SQL Server Inventory Data` |
-| Azure Migrate Processing Orchestrator | Call Web App Processor | HTTP POST URL from HTTP-triggered version of `Read Web App Inventory Data` |
-| Azure Migrate Processing Orchestrator | Call Report Generator | HTTP POST URL from `Generate Consolidated Report` |
+| Azure Migrate Processing Orchestrator (optional) | Call Application Processor | HTTP POST URL from HTTP-triggered version of `Read Application Inventory Data` |
+| Azure Migrate Processing Orchestrator (optional) | Call SQL Processor | HTTP POST URL from HTTP-triggered version of `Read SQL Server Inventory Data` |
+| Azure Migrate Processing Orchestrator (optional) | Call Web App Processor | HTTP POST URL from HTTP-triggered version of `Read Web App Inventory Data` |
+| Azure Migrate Processing Orchestrator (optional) | Call Report Generator | HTTP POST URL from `Generate Consolidated Report` |
+
+> **Note**: In the recommended LLM-first approach, the `Handle File Upload` flow stores the file and returns the path to the Copilot agent. The agent then uses topic redirects to call each processing topic (Agent 2, 3, 4) in sequence. No HTTP action URIs are needed for the File Upload flow.
 
 ---
 
@@ -3919,8 +3919,8 @@ Inputs: uploadedFiles (File), userId (Text), userEmail (Text)
 Steps:
 1. Generate unique session ID
 2. Save uploaded file to Azure Blob Storage container
-3. Call Orchestrator flow with blob URLs
-4. Return session ID, status, and message to the agent
+3. Build the file path for the stored blob
+4. Return session ID, file path, status, and message to the agent
 ```
 
 **Flow Definition - Azure Blob Storage:**
@@ -3945,26 +3945,20 @@ Actions:
    Blob name: @{outputs('Generate_Session_ID')}/@{triggerBody()?['uploadedFiles']?['name']}
    Blob content: @{triggerBody()?['uploadedFiles']?['contentBytes']}
 
-3. HTTP - Call Orchestrator Flow (runs asynchronously after responding)
-   Method: POST
-   URI: (Paste the HTTP POST URL from your saved "Azure Migrate Processing Orchestrator" flow — see [Understanding HTTP Action URI Values](#understanding-http-action-uri-values))
-   Headers:
-     Content-Type: application/json
-   Body: {
-     "fileUrls": ["@{body('Create_blob_(V2)')?['Path']}"],
-     "sessionId": "@{outputs('Generate_Session_ID')}",
-     "userEmail": "@{triggerBody()?['userEmail']}",
-     "userId": "@{triggerBody()?['userId']}",
-     "storageType": "AzureBlob"
-   }
+3. Compose
+   Rename to: Build File Path
+   Expression: concat('uploads/', outputs('Generate_Session_ID'), '/', triggerBody()?['uploadedFiles']?['name'])
 
 4. Respond to the agent:
    - sessionId: @{coalesce(outputs('Generate_Session_ID'), '')}
+   - filePath: @{coalesce(outputs('Build_File_Path'), '')}
    - status: "Processing"
    - message: "File uploaded successfully to temporary storage. Processing has started."
 ```
 
-> **Important:** Every output in the **Respond to the agent** action must have a value. Wrap dynamic expressions in `coalesce()` (e.g., `coalesce(outputs('Generate_Session_ID'), '')`) so the flow returns an empty string instead of null when an action produces no result. The download URL for the generated report is provided by the **Get Processing Status** flow once processing completes — it is not returned at upload time.
+> **Note:** In the LLM-first architecture, this flow does NOT call the Orchestrator. It stores the file and returns the `filePath` to the Copilot agent, which stores it in `Global.uploadedFilePath` and then coordinates processing by redirecting to each analysis topic (Agent 2, 3, 4) in sequence.
+>
+> **Important:** Every output in the **Respond to the agent** action must have a value. Wrap dynamic expressions in `coalesce()` (e.g., `coalesce(outputs('Generate_Session_ID'), '')`) so the flow returns an empty string instead of null when an action produces no result.
 >
 > **Note:** The trigger input names (`uploadedFiles`, `userId`, `userEmail`) define the keys in `triggerBody()`. Access them as `triggerBody()?['uploadedFiles']`, `triggerBody()?['userId']`, and `triggerBody()?['userEmail']` — not via a nested `user` object.
 
@@ -3997,8 +3991,8 @@ Steps:
 1. Generate unique session ID
 2. Create session folder in SharePoint
 3. Save uploaded file to SharePoint
-4. Call Orchestrator flow with file URLs
-5. Return session ID, status, and message to the agent
+4. Build the file path for the stored file
+5. Return session ID, file path, status, and message to the agent
 ```
 
 **Flow Definition - SharePoint:**
@@ -4027,24 +4021,20 @@ Actions:
    File Name: @{triggerBody()?['uploadedFiles']?['name']}
    Content: @{triggerBody()?['uploadedFiles']?['contentBytes']}
 
-4. HTTP - Call Orchestrator Flow
-   Method: POST
-   URI: (Paste the HTTP POST URL from your saved "Azure Migrate Processing Orchestrator" flow — see [Understanding HTTP Action URI Values](#understanding-http-action-uri-values))
-   Body: {
-     "fileUrls": ["@{body('Create_file')?['Path']}"],
-     "sessionId": "@{outputs('Generate_Session_ID')}",
-     "userEmail": "@{triggerBody()?['userEmail']}",
-     "userId": "@{triggerBody()?['userId']}",
-     "storageType": "SharePoint"
-   }
+4. Compose
+   Rename to: Build File Path
+   Expression: concat('/Uploads/', outputs('Generate_Session_ID'), '/', triggerBody()?['uploadedFiles']?['name'])
 
 5. Respond to the agent:
    - sessionId: @{coalesce(outputs('Generate_Session_ID'), '')}
+   - filePath: @{coalesce(outputs('Build_File_Path'), '')}
    - status: "Processing"
    - message: "File uploaded successfully. Processing has started."
 ```
 
-> **Note:** Access trigger inputs using the names defined on the trigger: `triggerBody()?['uploadedFiles']`, `triggerBody()?['userEmail']`, `triggerBody()?['userId']`. Every output in the **Respond to the agent** action must have a value assigned — wrap dynamic expressions in `coalesce()` to return an empty string `''` when no value is available. The download URL for the generated report is provided by the **Get Processing Status** flow once processing completes — it is not returned at upload time.
+> **Note:** In the LLM-first architecture, this flow does NOT call the Orchestrator. It stores the file and returns the `filePath` to the Copilot agent, which stores it in `Global.uploadedFilePath` and then coordinates processing by redirecting to each analysis topic (Agent 2, 3, 4) in sequence.
+>
+> **Note:** Access trigger inputs using the names defined on the trigger: `triggerBody()?['uploadedFiles']`, `triggerBody()?['userEmail']`, `triggerBody()?['userId']`. Every output in the **Respond to the agent** action must have a value assigned — wrap dynamic expressions in `coalesce()` to return an empty string `''` when no value is available.
 
 ### Flow 2: Get Processing Status
 
