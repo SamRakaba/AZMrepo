@@ -1621,6 +1621,8 @@ This agent (implemented primarily as a Power Automate flow) processes the Applic
 2. Click on **Use sample payload to generate schema**
 3. In the dialog that appears, paste the following JSON sample:
 
+> **EXAMPLE ONLY — replace values with your own.** These sample values are used solely to generate the trigger schema; they are not real paths or IDs.
+
 ```json
 {
   "filePath": "/uploads/session-123/AzureMigrate_Export.xlsx",
@@ -1981,12 +1983,14 @@ After the loop (not inside it):
 2. Select **Manually**
 3. Click **Test**
 4. In another tab, use a tool like Postman to send a test request:
+   > **EXAMPLE ONLY — replace `[Your Flow URL]` with your actual flow HTTP trigger URL.** The file path and session ID are sample values.
+
    ```json
    POST [Your Flow URL]
    Content-Type: application/json
    
    {
-     "filePath": "/Uploads/test-session/test_application_inventory.xlsx",
+     "filePath": "/uploads/test-session/test_application_inventory.xlsx",
      "sessionId": "test-session-123"
    }
    ```
@@ -2120,6 +2124,9 @@ Process SQL Server inventory sheets to create a unique list of SQL Server instan
 1. Click on the **When a HTTP request is received** trigger to expand it
 2. Click **Use sample payload to generate schema**
 3. Paste the following JSON:
+
+> **EXAMPLE ONLY — replace values with your own.** These sample values are used solely to generate the trigger schema.
+
 ```json
 {
   "filePath": "/uploads/session-123/AzureMigrate_Export.xlsx",
@@ -2414,6 +2421,9 @@ Process database inventory sheets for non-SQL Server databases (Oracle, MySQL, P
 1. Click on the trigger to expand it
 2. Click **Use sample payload to generate schema**
 3. Paste:
+
+> **EXAMPLE ONLY — replace values with your own.** These sample values are used solely to generate the trigger schema.
+
 ```json
 {
   "filePath": "/uploads/session-123/AzureMigrate_Export.xlsx",
@@ -2714,6 +2724,9 @@ Generate the final consolidated Excel spreadsheet with all unique applications, 
 1. Click on the trigger to expand it
 2. Click **Use sample payload to generate schema**
 3. Paste the following comprehensive JSON:
+
+> **EXAMPLE ONLY — replace values with your own.** The machine names, domains, and IDs below are sample data used solely to generate the trigger schema.
+
 ```json
 {
   "uniqueApplications": [
@@ -3294,6 +3307,8 @@ The Orchestrator is the central Power Automate flow that coordinates all the pro
 2. Click **Use sample payload to generate schema**
 3. Paste the following JSON:
 
+> **EXAMPLE ONLY — replace values with your own.** These sample values are used solely to generate the trigger schema.
+
 ```json
 {
   "fileUrls": [
@@ -3863,10 +3878,10 @@ Actions:
 
 **Azure Blob Storage Connection Setup:**
 1. In Power Automate, add a new connection for **Azure Blob Storage**
-2. Choose authentication method:
-   - **Access Key**: Use storage account access key
-   - **SAS Token**: Use shared access signature for limited access
-   - **Azure AD**: Use Azure Active Directory for managed identity
+2. Choose authentication method (listed from most to least secure):
+   - **Azure AD / Managed Identity (Recommended)**: Use Azure Active Directory for managed identity — no secrets to rotate
+   - **SAS Token**: Use a shared access signature with minimal permissions and short expiry for limited access
+   - **Access Key**: Use the storage account access key (least secure — grants full account access; avoid if possible)
 3. Test the connection before saving
 
 **Benefits of Azure Blob Storage for Temporary Files:**
@@ -4127,6 +4142,8 @@ Actions:
 3. Select the flow from the list — a new **Action** node appears in the topic
 4. Map inputs and outputs directly on the Action node
 
+> **Terminology note:** Although Power Automate flows are now added via the **Tools** page (replacing the former "Actions" page), the node that appears on the topic canvas when you add a flow is still labeled **Action** in the current Copilot Studio UI. If your UI shows a different label, use the label you see.
+
 #### Input/Output Mapping
 
 **For File Upload Flow (when added as a tool from the Tools page):**
@@ -4146,7 +4163,7 @@ Output Mapping:
   - message     → (display in a Message node)
 ```
 
-**For File Upload Flow (when added as an Action node within a topic):**
+**For File Upload Flow (when added as a tool via Add a tool within a topic — appears as an Action node on the canvas):**
 ```
 Input Mapping:
   - uploadedFiles → { contentBytes: Topic.uploadedFiles.Content, name: Topic.uploadedFiles.Name }
@@ -4465,6 +4482,8 @@ When you use `outputs('Generate_Session_ID')`, Power Automate looks for an actio
 
 Add error logging to your flows:
 
+> **Security Warning:** The `InputData` field below logs the full trigger body, which may contain file content or personally identifiable information (PII). In production, consider logging only the session ID and file name instead of the entire input payload to avoid exposing sensitive data.
+
 ```
 Scope: Error Handling
   - Create item (SharePoint List: ErrorLog)
@@ -4472,7 +4491,7 @@ Scope: Error Handling
     - ErrorMessage: @{actions('FailedAction')?['error']?['message']}
     - Timestamp: @{utcNow()}
     - SessionId: @{variables('sessionId')}
-    - InputData: @{string(triggerBody())}
+    - InputData: @{triggerBody()?['uploadedFiles']?['name']}
 ```
 
 ### Performance Optimization
@@ -4585,14 +4604,17 @@ System utilities:
 - Microsoft Edge Update*
 ```
 
-### Version Comparison Logic
+### Version / Duplicate Handling Logic
+
+> **Note:** The flow logic implemented in Agent 2 (Step 6.4) uses **first-occurrence-wins** deduplication: the first entry for a given application key (Application + Provider) is kept, and subsequent duplicates are discarded. If you need highest-version-wins behavior instead, you must add version comparison logic inside the duplicate-check branch. The default flow as documented does **not** perform version comparison.
 
 ```
-For applications with same name but different versions:
-1. Parse version strings
-2. Compare major.minor.build.revision
-3. Keep entry with highest version
-4. If versions equal, keep first occurrence
+Default behavior (as implemented in Agent 2):
+For applications with same name and provider:
+1. Generate a unique key from Application + Provider
+2. Check if the key already exists in processedApps
+3. If NOT a duplicate, add the entry to uniqueApplications
+4. If a duplicate, skip the entry (first occurrence wins)
 ```
 
 ---
