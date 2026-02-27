@@ -330,12 +330,12 @@ If you prefer to use SharePoint for storage (requires users have SharePoint acce
 ## Agent 1: File Upload Handler
 
 ### Purpose
-This agent is the **starting point of the Azure Migrate processing flow**. It provides users with instructions to upload Azure Migrate extracted CSV files, accepts the file uploads, validates them, stores files in temporary storage (Azure Blob Storage recommended), and triggers the processing workflow.
+This agent is the **starting point of the Azure Migrate processing flow**. It provides users with instructions to upload Azure Migrate extracted CSV files, accepts the file uploads, validates them, stores files in temporary storage (Azure Blob Storage recommended), and coordinates the LLM-based processing sequence by redirecting to the analysis topics (Agents 2, 3, 4) in order.
 
 > **Important**: This agent is:
 > - **NOT conversational** - It follows a structured flow without general chat capabilities
 > - **Triggered on file(s) upload** - The main flow activates when users upload files
-> - **The start of the processing flow** - It initiates the entire Azure Migrate CSV processing pipeline
+> - **The coordinator of the processing flow** - After upload, it triggers each LLM analysis topic in sequence (Application → SQL Server → Web App → Report)
 > - Designed to work with Azure Blob Storage as temporary storage, which does NOT require users to have SharePoint or OneDrive access
 
 ### Storage Options
@@ -465,7 +465,7 @@ You are the Azure Migrate File Handler agent. Your role is to:
 1. GUIDE users to upload Azure Migrate extracted CSV files
 2. ACCEPT file uploads (CSV or Excel format) containing Azure Migrate export data
 3. VALIDATE uploaded files have the expected format
-4. TRIGGER the processing workflow upon successful upload
+4. COORDINATE the LLM-based processing workflow after successful upload
 
 IMPORTANT BEHAVIOR:
 - You are NOT a general-purpose conversational agent
@@ -476,14 +476,28 @@ IMPORTANT BEHAVIOR:
 
 EXPECTED FILE FORMATS:
 - CSV files exported from Azure Migrate
-- Excel files (.xlsx) with sheets: ApplicationInventory, SQL Server, Database, WebApplications
+- Excel files (.xlsx) with sheets: ApplicationInventory, SQL Server, WebApplications
+
+PROCESSING ARCHITECTURE (LLM-first approach):
+- After the file is uploaded and stored, you coordinate the processing sequence
+  by triggering each analysis topic in order
+- Agents 2, 3, and 4 use your LLM reasoning to analyze raw data from the file.
+  Power Automate is used ONLY for reading raw data from files and writing results
+  to spreadsheets — all consolidation and noise detection is performed by LLM
+  analysis within Copilot Studio topics
+- The processing sequence is:
+  1. "Process Application Inventory" topic — LLM analyzes and consolidates apps
+  2. "Process SQL Server Inventory" topic — LLM consolidates SQL instances
+  3. "Process Web App Inventory" topic — LLM consolidates web apps
+  4. Report generation — consolidated data written to a spreadsheet
 
 WORKFLOW:
 1. Greet the user and explain the purpose
 2. Provide instructions for uploading Azure Migrate CSV files
 3. Wait for file upload
-4. Validate and process uploaded files
-5. Confirm processing has started
+4. Store the uploaded file and record the file path
+5. Trigger the processing topics in sequence (Application → SQL → Web App → Report)
+6. Provide the user with a download link to the consolidated report
 
 RESPONSE STYLE:
 - Be concise and professional
@@ -600,13 +614,73 @@ We'll create a dedicated topic to initialize all global variables needed for the
    - Click on the variable name `errorMessage`
    - In the Variable properties panel, change **Scope** to **Global**
 
-##### Step 3.1.9: Add End Conversation Node
+##### Step 3.1.9: Create the uploadedFilePath Variable
+
+> **Note**: This variable stores the path to the uploaded file in temporary storage. It is used by Agents 2, 3, and 4 when calling their data extraction tools (e.g., "Read Application Inventory Data", "Read SQL Server Inventory Data", "Read Web App Inventory Data").
+
+1. Click the **+** button below the previous node
+2. Select **Variable management** → **Set a variable value**
+3. In the "Set variable" node:
+   - Click **Set variable** → **Create new**
+   - Type variable name: `uploadedFilePath`
+   - Click **Create**
+4. For **To value**, type: `""`
+5. **Change scope to Global**:
+   - Click on the variable name `uploadedFilePath`
+   - In the Variable properties panel, change **Scope** to **Global**
+
+##### Step 3.1.10: Create the consolidatedApplications Variable
+
+> **Note**: This variable is set by the "Process Application Inventory" topic (Agent 2) to store the LLM-analyzed unique application list as a JSON string.
+
+1. Click the **+** button below the previous node
+2. Select **Variable management** → **Set a variable value**
+3. In the "Set variable" node:
+   - Click **Set variable** → **Create new**
+   - Type variable name: `consolidatedApplications`
+   - Click **Create**
+4. For **To value**, type: `""`
+5. **Change scope to Global**:
+   - Click on the variable name `consolidatedApplications`
+   - In the Variable properties panel, change **Scope** to **Global**
+
+##### Step 3.1.11: Create the consolidatedSQLInstances Variable
+
+> **Note**: This variable is set by the "Process SQL Server Inventory" topic (Agent 3) to store the LLM-analyzed unique SQL Server list as a JSON string.
+
+1. Click the **+** button below the previous node
+2. Select **Variable management** → **Set a variable value**
+3. In the "Set variable" node:
+   - Click **Set variable** → **Create new**
+   - Type variable name: `consolidatedSQLInstances`
+   - Click **Create**
+4. For **To value**, type: `""`
+5. **Change scope to Global**:
+   - Click on the variable name `consolidatedSQLInstances`
+   - In the Variable properties panel, change **Scope** to **Global**
+
+##### Step 3.1.12: Create the consolidatedWebApps Variable
+
+> **Note**: This variable is set by the "Process Web App Inventory" topic (Agent 4) to store the LLM-analyzed unique web application list as a JSON string.
+
+1. Click the **+** button below the previous node
+2. Select **Variable management** → **Set a variable value**
+3. In the "Set variable" node:
+   - Click **Set variable** → **Create new**
+   - Type variable name: `consolidatedWebApps`
+   - Click **Create**
+4. For **To value**, type: `""`
+5. **Change scope to Global**:
+   - Click on the variable name `consolidatedWebApps`
+   - In the Variable properties panel, change **Scope** to **Global**
+
+##### Step 3.1.13: Add End Conversation Node
 
 1. Click the **+** button below the last variable node
 2. Select **Topic management** → **End current topic**
 3. This ensures the topic ends cleanly after initialization
 
-##### Step 3.1.10: Save the Topic
+##### Step 3.1.14: Save the Topic
 
 1. Click the **Save** button at the top-right of the canvas
 2. Wait for the "Topic saved" confirmation
@@ -621,15 +695,19 @@ After saving the topic, verify your global variables are created:
 4. In the variable picker, you should see your global variables listed with the `Global.` prefix:
 
 ```
-┌──────────────────────────┬─────────┬───────────────────────────────────────────┐
-│ Variable Name            │ Type    │ Purpose                                   │
-├──────────────────────────┼─────────┼───────────────────────────────────────────┤
-│ Global.sessionId         │ String  │ Unique identifier for the current session │
-│ Global.uploadStatus      │ String  │ Current status of file upload             │
-│ Global.downloadUrl       │ String  │ URL for downloading the report            │
-│ Global.processingStatus  │ String  │ Current status of processing workflow     │
-│ Global.errorMessage      │ String  │ Error message if processing fails         │
-└──────────────────────────┴─────────┴───────────────────────────────────────────┘
+┌────────────────────────────────────┬─────────┬────────────────────────────────────────────────────┐
+│ Variable Name                      │ Type    │ Purpose                                            │
+├────────────────────────────────────┼─────────┼────────────────────────────────────────────────────┤
+│ Global.sessionId                   │ String  │ Unique identifier for the current session          │
+│ Global.uploadStatus                │ String  │ Current status of file upload                      │
+│ Global.downloadUrl                 │ String  │ URL for downloading the report                     │
+│ Global.processingStatus            │ String  │ Current status of processing workflow               │
+│ Global.errorMessage                │ String  │ Error message if processing fails                  │
+│ Global.uploadedFilePath            │ String  │ Path to the uploaded file in temporary storage      │
+│ Global.consolidatedApplications    │ String  │ LLM-analyzed unique application list (JSON)         │
+│ Global.consolidatedSQLInstances    │ String  │ LLM-analyzed unique SQL Server list (JSON)          │
+│ Global.consolidatedWebApps         │ String  │ LLM-analyzed unique web app list (JSON)             │
+└────────────────────────────────────┴─────────┴────────────────────────────────────────────────────┘
 ```
 
 > **Tip**: Global variable names must be unique across all topics in the agent. Once created, these variables can be accessed and modified from any topic by using the **{x}** variable picker.
@@ -740,16 +818,14 @@ Welcome! I'm your Azure Migrate CSV Processor. 🤖
 2. Ensure your files contain the required sheets:
    • ApplicationInventory (Machine names, Applications, Versions)
    • SQL Server (Instance names, Editions, Versions)
-   • Database (Database types, Versions)
    • WebApplications (Web server types, Web app names, Frameworks)
 3. Files can be in CSV or Excel (.xlsx) format
 4. You can upload one or multiple files at once
 
 📁 **What I'll do with your files:**
-• Parse and validate the data
-• Remove duplicates and noise
+• Use AI-powered analysis to identify noise and duplicates
 • Consolidate application, SQL Server, and web app inventories
-• Generate a downloadable report
+• Generate a downloadable report with unique entries
 
 ⬆️ **Please upload your Azure Migrate CSV file(s) to begin processing.**
 ```
@@ -812,22 +888,22 @@ Welcome! I'm your Azure Migrate CSV Processor. 🤖
 ```
 ✅ **Files received successfully!**
 
-I'm now processing your Azure Migrate data. This includes:
-1. 📊 Parsing Application Inventory sheet
-2. 🗄️ Processing SQL Server instances
-3. 💾 Consolidating web app inventory
-4. 📝 Generating your report
+I'll now store your file and begin the AI-powered analysis. The processing sequence is:
 
-⏳ This may take a few moments depending on file size.
+1. 📁 Storing file in temporary storage
+2. 📊 Analyzing Application Inventory (LLM-based noise detection & consolidation)
+3. 🗄️ Analyzing SQL Server Inventory (LLM-based version grouping & consolidation)
+4. 🌐 Analyzing Web App Inventory (LLM-based consolidation)
+5. 📝 Generating your consolidated report
 
-I'll notify you when the consolidated report is ready for download. You can also ask me "Check status" at any time.
+⏳ Each step will provide a summary as it completes.
 ```
 
 5. Click outside the text area to save the message
 
-**Part B: Add a Power Automate Flow Call Node (Placeholder)**
+**Part B: Add a Power Automate Flow Call Node (File Upload)**
 
-> **Note:** The Power Automate agent flow that processes the uploaded files will be fully configured in **Step 5**. The steps below add the flow tool node to the canvas now so the topic structure is complete. You will return here to configure the inputs and outputs once the flow is ready.
+> **Note:** The Power Automate agent flow that stores the uploaded files will be fully configured in **Step 5**. The steps below add the flow tool node to the canvas now so the topic structure is complete. You will return here to configure the inputs and outputs once the flow is ready.
 
 6. Click the **+** (Add node) button below the message node you just added (still inside the TRUE branch)
 7. From the dropdown menu, select **Add a tool**
@@ -837,6 +913,44 @@ I'll notify you when the consolidated report is ready for download. You can also
 9. If you created a new agent flow template and returned to the topic, an **Action** node will appear in the canvas — this is expected and will be fully configured in Step 5.
 
 > **Tip:** If you prefer to skip adding the flow tool for now, you can come back after completing Step 5. Locate the TRUE branch in this topic, click **+**, select **Add a tool**, and choose the flow to add and configure it at that point.
+
+**Part C: Add Topic Redirects for LLM-Based Processing Sequence**
+
+After the file upload flow returns, the agent coordinates the processing by redirecting to each analysis topic in sequence. Each topic (Agent 2, 3, 4) calls its own data extraction tool, then the LLM analyzes the raw data and stores the results in a global variable.
+
+> **Note:** The processing topics referenced below are created in Agents 2, 3, and 4 respectively. You will add these redirect nodes after completing those agent sections. For now, you can add placeholder "Send a message" nodes or skip this part and return later.
+
+10. Click the **+** (Add node) button below the Action node (still inside the TRUE branch)
+11. From the dropdown menu, select **Redirect to another topic**
+12. Select: **Process Application Inventory** (created in Agent 2, Step 4)
+    - This topic calls the "Read Application Inventory Data" tool, then the LLM analyzes the data and stores results in `Global.consolidatedApplications`
+
+13. Click the **+** (Add node) button below the redirect
+14. Select **Redirect to another topic**
+15. Select: **Process SQL Server Inventory** (created in Agent 3, Step 4)
+    - This topic calls the "Read SQL Server Inventory Data" tool, then the LLM analyzes the data and stores results in `Global.consolidatedSQLInstances`
+
+16. Click the **+** (Add node) button below the redirect
+17. Select **Redirect to another topic**
+18. Select: **Process Web App Inventory** (created in Agent 4, Step 4)
+    - This topic calls the "Read Web App Inventory Data" tool, then the LLM analyzes the data and stores results in `Global.consolidatedWebApps`
+
+19. Click the **+** (Add node) button below the redirect
+20. Select **Send a message**
+21. Type:
+
+```
+✅ **All inventory analysis complete!**
+
+📊 Your consolidated data is ready:
+• Application inventory analyzed and deduplicated
+• SQL Server instances consolidated and grouped by version
+• Web applications identified and consolidated
+
+📝 Generating your final report now...
+```
+
+> **Note:** After all analysis topics complete, you can optionally redirect to a report generation topic that calls the Agent 5 (Report Generator) flow to create the final Excel spreadsheet and provide a download link. See [Agent 5: Report Generator](#agent-5-report-generator) for details.
 
 ##### Step 4.1.8: Configure the FALSE Branch (No Files Uploaded)
 
@@ -873,7 +987,10 @@ Would you like to try uploading your files again?
 
 #### Step 4.2: Create Topic 2 - Check Processing Status
 
-This topic allows users to check on the status of their file processing.
+This topic allows users to check on the status of their file processing. In the LLM-first architecture, processing happens conversationally within the agent's topics (Agents 2, 3, 4 run sequentially in the Welcome topic's TRUE branch). This status topic is useful when:
+- The user navigates away and returns to check progress
+- The agent is configured with an optional Power Automate Orchestrator for background processing
+- The report generation (Agent 5) is running asynchronously
 
 ##### Step 4.2.1: Create New Topic
 
@@ -982,7 +1099,7 @@ Unfortunately, there was an issue processing your files:
 
 **Possible causes:**
 • File format not recognized
-• Missing required sheets (ApplicationInventory, SQL Server, Database, WebApplications)
+• Missing required sheets (ApplicationInventory, SQL Server, WebApplications)
 • File may be corrupted or password protected
 
 **To try again:**
@@ -1296,10 +1413,11 @@ Whether you created the flow from a topic or from Power Automate directly, open 
 3. **Configure flow outputs** (click on the **Respond to the agent** action):
    - Verify the **Asynchronous response** toggle is set to **Off** under **Networking** in the action settings
    - Add output: Type: **Text**, Name: `sessionId`, Value: type any temporary placeholder (e.g., `temp`) — this will be replaced with a dynamic expression in Step 7
+   - Add output: Type: **Text**, Name: `filePath`, Value: type any temporary placeholder (e.g., `temp`) — this will be replaced with the actual storage path in Step 7
    - Add output: Type: **Text**, Name: `status`, Value: `Processing`
    - Add output: Type: **Text**, Name: `message`, Value: `File uploaded successfully. Processing has started.`
 
-> **Important:** The `sessionId` output requires a Compose action named "Generate Session ID" that does not exist yet — it is created in **Step 7**. At this point, enter any non-empty placeholder value to pass validation. In Step 7.4 (Option A) or Step 7.5 (Option B) you will replace it with the expression `coalesce(outputs('Generate_Session_ID'), '')`. If you try to enter the expression now, Power Automate will show an error: *"invalid reference to 'Generate_Session_ID'"* because the action has not been added yet.
+> **Important:** The `sessionId` and `filePath` outputs require Compose actions that do not exist yet — they are created in **Step 7**. At this point, enter any non-empty placeholder values to pass validation. In Step 7.4 (Option A) or Step 7.5 (Option B) you will replace them with dynamic expressions. If you try to enter the expressions now, Power Automate will show an error because the referenced actions have not been added yet.
 
 > **Important:** Every output parameter in the **Respond to the agent** action must have a value assigned at runtime. If your flow has conditional branches (e.g., a condition that checks whether processing is complete), ensure **each branch** includes a **Respond to the agent** action with all outputs populated. Leaving any output blank causes a `FlowActionException` error: "output parameter missing from response data."
 >
@@ -1308,10 +1426,11 @@ Whether you created the flow from a topic or from Power Automate directly, open 
 > | Output Parameter | Type | Expected Value | Default (when no value) | Safe Expression Example |
 > |---|---|---|---|---|
 > | `sessionId` | Text | GUID generated by the Compose action named "Generate Session ID" (added in Step 7) | `""` | `coalesce(outputs('Generate_Session_ID'), '')` |
+> | `filePath` | Text | Storage path of the uploaded file (added in Step 7) | `""` | `coalesce(outputs('Build_File_Path'), '')` |
 > | `status` | Text | `"Processing"` | `"Error"` | `"Processing"` |
 > | `message` | Text | `"File uploaded successfully. Processing has started."` | `"No details available."` | `"File uploaded successfully. Processing has started."` |
 >
-> **Note:** The `status` and `message` outputs use literal string values in this flow, so `coalesce()` is not required for them. Use `coalesce()` only for dynamic expressions that reference action outputs (such as `sessionId`) where a preceding action could return null.
+> **Note:** The `status` and `message` outputs use literal string values in this flow, so `coalesce()` is not required for them. Use `coalesce()` only for dynamic expressions that reference action outputs (such as `sessionId` and `filePath`) where a preceding action could return null.
 >
 > Apply the same pattern to the **Get Processing Status** flow outputs:
 >
@@ -1356,6 +1475,7 @@ The flow now appears in the agent's list of tools.
    - `userEmail` → `System.User.Email` (System variable)
 4. **Map the outputs** — click each output field and select the corresponding global variable:
    - `sessionId` → `Global.sessionId`
+   - `filePath` → `Global.uploadedFilePath`
    - `status` → `Global.uploadStatus`
    - `message` → (display in a Message node below the Action node)
 5. Click **Save**
@@ -1494,17 +1614,22 @@ The file upload agent flow stores uploaded files in temporary storage. Choose th
      @{triggerBody()?['uploadedFiles']?['contentBytes']}
      ```
 
-> **Note:** Do not rename this connector action — its default internal name `Create_blob_(V2)` is used in the Orchestrator flow call below.
+> **Note:** Do not rename this connector action — its default internal name `Create_blob_(V2)` is short enough as-is.
 
-##### Step 7.3: Add HTTP — Call Orchestrator Flow
+##### Step 7.3: Add Compose — Build File Path
+
+This action builds the full path to the uploaded file in blob storage, which is returned to the agent and stored in `Global.uploadedFilePath` for use by the data extraction tools in Agents 2, 3, and 4.
 
 1. Click the **+** (Add an action) icon below the Create blob action
-2. Search for and select **HTTP** (under Built-in > HTTP)
-3. Configure (detailed in [Power Automate Flows](#power-automate-flows) section):
-   - **Method**: POST
-   - **URI**: Paste the **HTTP POST URL** copied from your saved `Azure Migrate Processing Orchestrator` flow's trigger (see [Understanding HTTP Action URI Values](#understanding-http-action-uri-values))
-   - **Headers**: `Content-Type: application/json`
-   - **Body**: See the Orchestrator flow definition in the Power Automate Flows section
+2. Search for and select **Compose** (under Built-in > Data Operations)
+3. In the **Inputs** field, click the **Expression** tab (fx) and enter:
+   ```
+   concat('uploads/', outputs('Generate_Session_ID'), '/', triggerBody()?['uploadedFiles']?['name'])
+   ```
+4. Click **OK**
+5. Rename the action to: `Build File Path`
+
+> **Why this step?** In the LLM-first architecture, the Copilot agent's topics (Agents 2, 3, 4) coordinate all processing — not a Power Automate Orchestrator. The file path is returned to the agent so it can pass it to each data extraction tool. The HTTP Orchestrator call is no longer needed here.
 
 ##### Step 7.4: Configure the Respond to the agent Outputs
 
@@ -1515,11 +1640,16 @@ The file upload agent flow stores uploaded files in temporary storage. Choose th
      coalesce(outputs('Generate_Session_ID'), '')
      ```
      Then click **OK**
+   - **filePath**: Click the value field, switch to the **Expression** tab, and enter:
+     ```
+     coalesce(outputs('Build_File_Path'), '')
+     ```
+     Then click **OK**
    - **status**: Type the literal value: `Processing`
    - **message**: Type the literal value: `File uploaded successfully. Processing has started.`
 3. Click **Save**
 
-> **Note:** Access the uploaded file data using `triggerBody()?['uploadedFiles']?['name']` and `triggerBody()?['uploadedFiles']?['contentBytes']`. The key names in `triggerBody()` match the input parameter names defined on the trigger. Every output in the **Respond to the agent** action must have a value — use `coalesce()` to wrap any dynamic expression so a default value (e.g., `''`) is returned when the action produces no result. The download URL for the generated report is provided by the **Get Processing Status** flow once processing completes — it is not returned at upload time.
+> **Note:** Access the uploaded file data using `triggerBody()?['uploadedFiles']?['name']` and `triggerBody()?['uploadedFiles']?['contentBytes']`. The key names in `triggerBody()` match the input parameter names defined on the trigger. Every output in the **Respond to the agent** action must have a value — use `coalesce()` to wrap any dynamic expression so a default value (e.g., `''`) is returned when the action produces no result. The `filePath` output is stored in `Global.uploadedFilePath` by the agent topic and passed to each data extraction tool (Agents 2, 3, 4).
 
 **Benefits of Azure Blob Storage:**
 - Users do NOT need SharePoint or OneDrive access
@@ -1568,11 +1698,18 @@ The file upload agent flow stores uploaded files in temporary storage. Choose th
    - **File Name**: `@{triggerBody()?['uploadedFiles']?['name']}`
    - **File Content**: `@{triggerBody()?['uploadedFiles']?['contentBytes']}`
 
-##### Step 7.4 (SharePoint): Add HTTP — Call Orchestrator Flow
+##### Step 7.4 (SharePoint): Add Compose — Build File Path
 
 1. Click the **+** (Add an action) icon below the Create file action
-2. Search for and select **HTTP** (under Built-in > HTTP)
-3. Configure (detailed in [Power Automate Flows](#power-automate-flows) section)
+2. Search for and select **Compose** (under Built-in > Data Operations)
+3. In the **Inputs** field, click the **Expression** tab (fx) and enter:
+   ```
+   concat('/Uploads/', outputs('Generate_Session_ID'), '/', triggerBody()?['uploadedFiles']?['name'])
+   ```
+4. Click **OK**
+5. Rename the action to: `Build File Path`
+
+> **Why this step?** In the LLM-first architecture, the Copilot agent's topics coordinate processing — not a Power Automate Orchestrator. The file path is returned to the agent so it can pass it to each data extraction tool.
 
 ##### Step 7.5 (SharePoint): Configure the Respond to the agent Outputs
 
@@ -1581,6 +1718,11 @@ The file upload agent flow stores uploaded files in temporary storage. Choose th
    - **sessionId**: Click the value field, switch to the **Expression** tab, and enter:
      ```
      coalesce(outputs('Generate_Session_ID'), '')
+     ```
+     Then click **OK**
+   - **filePath**: Click the value field, switch to the **Expression** tab, and enter:
+     ```
+     coalesce(outputs('Build_File_Path'), '')
      ```
      Then click **OK**
    - **status**: Type the literal value: `Processing`
