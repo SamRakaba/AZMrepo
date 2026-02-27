@@ -1264,11 +1264,11 @@ Whether you created the flow from a topic or from Power Automate directly, open 
 
 3. **Configure flow outputs** (click on the **Respond to the agent** action):
    - Verify the **Asynchronous response** toggle is set to **Off** under **Networking** in the action settings
-   - Add output: Type: **Text**, Name: `sessionId`, Value: type a temporary placeholder `temp` (this will be replaced with a dynamic expression in Step 7.4 after the Compose action is added)
+   - Add output: Type: **Text**, Name: `sessionId`, Value: type any temporary placeholder (e.g., `temp`) — this will be replaced with a dynamic expression in Step 7
    - Add output: Type: **Text**, Name: `status`, Value: `Processing`
    - Add output: Type: **Text**, Name: `message`, Value: `File uploaded successfully. Processing has started.`
 
-> **Important:** The `sessionId` output requires a Compose action named "Generate Session ID" that does not exist yet — it is created in **Step 7**. At this point, enter a temporary placeholder value (e.g., `temp`). In Step 7.4 you will replace it with the expression `coalesce(outputs('Generate_Session_ID'), '')`. If you try to enter the expression now, Power Automate will show an error: *"invalid reference to 'Generate_Session_ID'"* because the action has not been added yet.
+> **Important:** The `sessionId` output requires a Compose action named "Generate Session ID" that does not exist yet — it is created in **Step 7**. At this point, enter any non-empty placeholder value to pass validation. In Step 7.4 (Option A) or Step 7.5 (Option B) you will replace it with the expression `coalesce(outputs('Generate_Session_ID'), '')`. If you try to enter the expression now, Power Automate will show an error: *"invalid reference to 'Generate_Session_ID'"* because the action has not been added yet.
 
 > **Important:** Every output parameter in the **Respond to the agent** action must have a value assigned at runtime. If your flow has conditional branches (e.g., a condition that checks whether processing is complete), ensure **each branch** includes a **Respond to the agent** action with all outputs populated. Leaving any output blank causes a `FlowActionException` error: "output parameter missing from response data."
 >
@@ -3973,7 +3973,7 @@ Actions:
    Prefix: @{triggerBody()?['sessionId']}/
 
 2. Filter array
-   (Do not rename — the expression body('Filter_array') references the default name)
+   (Keep default name — no rename needed)
    From: @{body('List_blobs_(V2)')?['value']}
    Condition: endsWith(item()?['Name'], '.xlsx')
 
@@ -4077,29 +4077,21 @@ Trigger: When an agent calls the flow
 
 Actions:
 1. Get files (properties only) - SharePoint
-   Rename to: Get files
+   Rename to: Get files (default name "Get_files_(properties_only)" is too long for expressions)
    Site: Your Site
    Library: Reports
    Folder: /@{triggerBody()?['sessionId']}
    Filter: endswith(Name, '.xlsx')
-
-   Note: The default connector name is "Get_files_(properties_only)". Rename
-   the action to "Get files" so expressions can use the shorter body('Get_files').
 
 2. Condition: Files exist?
    If: length(body('Get_files')?['value']) > 0
    
    Yes branch:
      3. Create sharing link for a file or folder (SharePoint)
-        Rename to: Create sharing link
+        Rename to: Create sharing link (default name is too long for expressions)
         Site: Your Site
         Item Id: @{first(body('Get_files')?['value'])?['Id']}
         Link type: View
-
-        Note: The default connector name is
-        "Create_sharing_link_for_a_file_or_folder". Rename the action to
-        "Create sharing link" so expressions can use
-        body('Create_sharing_link').
      
      4. Respond to the agent:
         - processingStatus: "Complete"
