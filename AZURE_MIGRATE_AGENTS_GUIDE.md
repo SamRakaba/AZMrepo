@@ -3842,10 +3842,12 @@ https://<region>.logic.azure.com:443/workflows/<workflow-id>/triggers/manual/pat
 |---------|-------------|
 | `<region>` | Azure region where the flow is hosted (e.g., `prod-00.westus`, `prod-28.eastus`) |
 | `<workflow-id>` | Unique identifier for the flow (auto-assigned) |
-| `api-version` | Logic Apps API version (e.g., `2016-10-01`) |
-| `sp`, `sv`, `sig` | Shared Access Signature (SAS) parameters for authentication |
+| `<api-version>` | Logic Apps API version (e.g., `2016-10-01`) |
+| `<permissions>` (`sp`) | Permissions granted (e.g., `%2Ftriggers%2Fmanual%2Frun` for trigger run permission) |
+| `<sas-version>` (`sv`) | SAS protocol version (e.g., `1.0`) |
+| `<signature>` (`sig`) | Shared Access Signature — cryptographic hash that authenticates the request |
 
-> **Security Warning:** The `sig` query parameter acts as an authentication key. Treat this URL as a secret — do not share it publicly, commit it to source control, or log it in full. For production deployments, consider using [Azure API Management](https://learn.microsoft.com/en-us/azure/api-management/api-management-key-concepts) to front the endpoint, or restrict access via [IP address configuration](https://learn.microsoft.com/en-us/power-automate/ip-address-configuration). For more information, see [Secure access and data in Azure Logic Apps](https://learn.microsoft.com/en-us/azure/logic-apps/logic-apps-securing-a-logic-app#secure-inbound-requests).
+> **Security Warning:** The `sig` query parameter acts as an authentication key. Treat your actual flow URL as a secret — do not share it publicly, commit real URLs to source control, or log them in full. The placeholder URIs in this guide (e.g., "Paste the HTTP POST URL from your saved flow") are safe because they do not contain real signatures. For production deployments, consider using [Azure API Management](https://learn.microsoft.com/en-us/azure/api-management/api-management-key-concepts) to front the endpoint, or restrict access via [IP address configuration](https://learn.microsoft.com/en-us/power-automate/ip-address-configuration). For more information, see [Secure access and data in Azure Logic Apps](https://learn.microsoft.com/en-us/azure/logic-apps/logic-apps-securing-a-logic-app#secure-inbound-requests).
 
 #### Flow creation order (dependency chain)
 
