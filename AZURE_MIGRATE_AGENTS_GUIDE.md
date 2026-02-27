@@ -1869,6 +1869,9 @@ and duplicates consolidated.
 2. Map the inputs:
    - **filePath**: Select the file path variable from your upload workflow (e.g., `Global.uploadedFilePath`)
    - **sessionId**: Select the session ID variable (e.g., `Global.sessionId`)
+
+> **Note**: The `Global.uploadedFilePath` and `Global.sessionId` variables should be set by the **Agent 1: File Upload Handler** topic after a successful file upload. If these global variables do not yet exist, create them in the File Upload Handler topic by adding "Set a variable value" nodes and changing the scope from "Topic" to "Global".
+
 3. Store the outputs:
    - `rawApplicationData` → save to `Topic.rawAppData`
    - `rowCount` → save to `Topic.appRowCount`
@@ -1901,7 +1904,11 @@ instructions and return:
 1. Click **+** → **Set a variable value**
 2. Set variable: **Global.consolidatedApplications**
    - Change scope from "Topic" to "Global" in the variable properties panel
-3. Value: Set to the LLM's analysis output (the JSON array portion of the response)
+3. Value: Set to the LLM's analysis output
+
+> **Note**: The LLM's response will include both narrative text and the JSON array. In Copilot Studio, you can instruct the LLM (via the analysis prompt in Step 4.5) to output the JSON array in a clearly delimited format. The variable should capture the structured JSON output. If the LLM's response includes both text and JSON, you may need to use a **Parse value** node or an additional **Compose** action in a follow-up Power Automate tool to extract the JSON portion.
+
+> **Tip**: For reliable extraction, add a line to your LLM analysis prompt such as: *"Return ONLY the JSON array as your final message, with no additional text."* This makes it easier to store the entire response as the variable value.
 
 #### Step 4.7: Add Confirmation Message
 
@@ -3160,6 +3167,8 @@ The Copilot agent orchestrates all processing through its topic flow. The agent'
 
 > **Note**: In the LLM-first approach, much of the orchestration happens within the Copilot agent's topics. The agent calls each processing topic in sequence, passing results between them via global variables. The Power Automate Orchestrator below is provided for scenarios where you need to process multiple files or require flow-level error handling.
 
+> **⚠️ Important**: The data extraction flows created in Agents 2, 3, and 4 (`Read Application Inventory Data`, `Read SQL Server Inventory Data`, `Read Web App Inventory Data`) use the **"When an agent calls the flow"** trigger and are designed to be called directly by Copilot Studio topics as Tools. If you also need the Power Automate Orchestrator below to call these processors via HTTP, you must create **separate HTTP-triggered versions** of these flows (using the "When a HTTP request is received" trigger). Alternatively, you can rely entirely on the Copilot agent's topic-based orchestration and skip the Power Automate Orchestrator.
+
 ---
 
 ### Step 1: Create the Orchestrator Flow
@@ -3743,13 +3752,15 @@ Because each HTTP action's URI comes from the target flow's trigger, you must **
 
 #### URI value summary per HTTP action
 
+> **Note**: The `Read *` flows created in Agents 2, 3, and 4 use the "When an agent calls the flow" trigger (for Copilot Studio Tool integration). If you use the Power Automate Orchestrator, you need separate HTTP-triggered versions of these flows. The table below assumes HTTP-triggered versions exist. If you use only the Copilot agent's topic-based orchestration (recommended with the LLM-first approach), you do not need these HTTP action URIs.
+
 | Calling Flow | HTTP Action Name | URI Value (paste from) |
 |-------------|-----------------|----------------------|
 | Handle File Upload (Blob Storage) | HTTP - Call Orchestrator Flow | HTTP POST URL from `Azure Migrate Processing Orchestrator` |
 | Handle File Upload (SharePoint) | HTTP - Call Orchestrator Flow | HTTP POST URL from `Azure Migrate Processing Orchestrator` |
-| Azure Migrate Processing Orchestrator | Call Application Processor | HTTP POST URL from `Read Application Inventory Data` |
-| Azure Migrate Processing Orchestrator | Call SQL Processor | HTTP POST URL from `Read SQL Server Inventory Data` |
-| Azure Migrate Processing Orchestrator | Call Web App Processor | HTTP POST URL from `Read Web App Inventory Data` |
+| Azure Migrate Processing Orchestrator | Call Application Processor | HTTP POST URL from HTTP-triggered version of `Read Application Inventory Data` |
+| Azure Migrate Processing Orchestrator | Call SQL Processor | HTTP POST URL from HTTP-triggered version of `Read SQL Server Inventory Data` |
+| Azure Migrate Processing Orchestrator | Call Web App Processor | HTTP POST URL from HTTP-triggered version of `Read Web App Inventory Data` |
 | Azure Migrate Processing Orchestrator | Call Report Generator | HTTP POST URL from `Generate Consolidated Report` |
 
 ---
