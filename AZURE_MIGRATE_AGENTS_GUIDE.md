@@ -1264,9 +1264,9 @@ Whether you created the flow from a topic or from Power Automate directly, open 
 
 3. **Configure flow outputs** (click on the **Respond to the agent** action):
    - Verify the **Asynchronous response** toggle is set to **Off** under **Networking** in the action settings
-   - Add output: Type: **Text**, Name: `sessionId`
-   - Add output: Type: **Text**, Name: `status`
-   - Add output: Type: **Text**, Name: `message`
+   - Add output: Type: **Text**, Name: `sessionId`, Value: (leave empty for now — will be set to a dynamic expression in Step 7)
+   - Add output: Type: **Text**, Name: `status`, Value: `Processing`
+   - Add output: Type: **Text**, Name: `message`, Value: `File uploaded successfully. Processing has started.`
 
 > **Important:** Every output parameter in the **Respond to the agent** action must have a value assigned at runtime. If your flow has conditional branches (e.g., a condition that checks whether processing is complete), ensure **each branch** includes a **Respond to the agent** action with all outputs populated. Leaving any output blank causes a `FlowActionException` error: "output parameter missing from response data."
 >
@@ -1368,6 +1368,8 @@ The flow now appears in the agent's list of tools.
 ---
 
 ### Step 6: Test the Agent
+
+> **Prerequisite:** Before testing the file upload flow, complete **Step 7** to configure the flow logic in Power Automate. If you test before Step 7 is completed, the flow will run with only the placeholder output values set in Step 5.1.1. You can still test the welcome message and conversation flow (Steps 6.1–6.2) without completing Step 7.
 
 #### Step 6.1: Open the Test Panel
 
