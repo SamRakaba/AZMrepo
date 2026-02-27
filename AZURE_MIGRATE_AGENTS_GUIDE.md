@@ -477,6 +477,8 @@ IMPORTANT BEHAVIOR:
 EXPECTED FILE FORMATS:
 - CSV files exported from Azure Migrate
 - Excel files (.xlsx) with sheets: ApplicationInventory, SQL Server, WebApplications
+  (The file may also contain a Database sheet — this is accepted but not processed by
+  the current agents)
 
 PROCESSING ARCHITECTURE (LLM-first approach):
 - After the file is uploaded and stored, you coordinate the processing sequence
@@ -819,6 +821,7 @@ Welcome! I'm your Azure Migrate CSV Processor. 🤖
    • ApplicationInventory (Machine names, Applications, Versions)
    • SQL Server (Instance names, Editions, Versions)
    • WebApplications (Web server types, Web app names, Frameworks)
+   ℹ️ Files may also include a Database sheet — this is accepted but not currently processed
 3. Files can be in CSV or Excel (.xlsx) format
 4. You can upload one or multiple files at once
 
