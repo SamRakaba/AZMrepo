@@ -756,6 +756,8 @@ After saving the topic, verify your global variables are created:
 └────────────────────────────────────┴─────────┴────────────────────────────────────────────────────┘
 ```
 
+> **Recommended new variables:** `Global.applicationDedupCSV` and `Global.detectedSheets` are recommended additions to support the sheet verification and CSV dedup report features. Create them using the same steps as the other global variables above (Step 3.1: navigate to **Topics** → open any topic → click **{x}** variable picker → **Create new** → set Scope to **Global**, Type to **String**, and enter the variable name). These variables are first populated in the sheet verification step (Step 4.1.7 Part A.1) and the application dedup step (Agent 2, Step 4.6.1) respectively.
+
 > **Tip**: Global variable names must be unique across all topics in the agent. Once created, these variables can be accessed and modified from any topic by using the **{x}** variable picker.
 
 ---
@@ -1024,24 +1026,30 @@ After file upload and sheet verification, the agent coordinates processing by re
 
 23. Click the **+** (Add node) button below the Action node (still inside the TRUE branch)
 24. Select **Add a condition** to check for the ApplicationInventory sheet:
-    - Use an LLM-driven condition or check if `Topic.detectedSheets` contains "ApplicationInventory"
-    - **TRUE**: Add **Redirect to another topic** → Select **Process Application Inventory** (created in Agent 2, Step 4)
+    - Click on **Select a variable** → Select `Topic.detectedSheets`
+    - Click on the **operator dropdown** → Select **contains**
+    - In the value field, type: `ApplicationInventory`
+    - **TRUE branch**: Click **+** → Select **Redirect to another topic** → Select **Process Application Inventory** (created in Agent 2, Step 4)
       - This topic calls the "Read Application Inventory Data" tool, then the LLM analyzes the data, stores results in `Global.consolidatedApplications`, and generates a CSV dedup summary
-    - **FALSE**: Add **Send a message** → `⏭️ Skipping Application Inventory processing — sheet not found in file.`
+    - **FALSE branch**: Click **+** → Select **Send a message** → Type: `⏭️ Skipping Application Inventory processing — sheet not found in file.`
 
 25. Click the **+** (Add node) button below the previous step
 26. Select **Add a condition** to check for the SQL Server sheet:
-    - Check if `Topic.detectedSheets` contains "SQL Server"
-    - **TRUE**: Add **Redirect to another topic** → Select **Process SQL Server Inventory** (created in Agent 3, Step 4)
+    - Click on **Select a variable** → Select `Topic.detectedSheets`
+    - Click on the **operator dropdown** → Select **contains**
+    - In the value field, type: `SQL Server`
+    - **TRUE branch**: Click **+** → Select **Redirect to another topic** → Select **Process SQL Server Inventory** (created in Agent 3, Step 4)
       - This topic calls the "Read SQL Server Inventory Data" tool, then the LLM analyzes the data and stores results in `Global.consolidatedSQLInstances`
-    - **FALSE**: Add **Send a message** → `⏭️ Skipping SQL Server Inventory processing — sheet not found in file.`
+    - **FALSE branch**: Click **+** → Select **Send a message** → Type: `⏭️ Skipping SQL Server Inventory processing — sheet not found in file.`
 
 27. Click the **+** (Add node) button below the previous step
 28. Select **Add a condition** to check for the WebApplications sheet:
-    - Check if `Topic.detectedSheets` contains "WebApplications"
-    - **TRUE**: Add **Redirect to another topic** → Select **Process Web App Inventory** (created in Agent 4, Step 4)
+    - Click on **Select a variable** → Select `Topic.detectedSheets`
+    - Click on the **operator dropdown** → Select **contains**
+    - In the value field, type: `WebApplications`
+    - **TRUE branch**: Click **+** → Select **Redirect to another topic** → Select **Process Web App Inventory** (created in Agent 4, Step 4)
       - This topic calls the "Read Web App Inventory Data" tool, then the LLM analyzes the data and stores results in `Global.consolidatedWebApps`
-    - **FALSE**: Add **Send a message** → `⏭️ Skipping Web App Inventory processing — sheet not found in file.`
+    - **FALSE branch**: Click **+** → Select **Send a message** → Type: `⏭️ Skipping Web App Inventory processing — sheet not found in file.`
 
 29. Click the **+** (Add node) button below the previous step
 30. Select **Send a message**
@@ -1650,42 +1658,68 @@ This lightweight flow reads the sheet names from the uploaded Excel file and ret
 
 ##### Step 5.5.3: Add Office Script or Excel Action to List Sheets
 
+> **Important prerequisite:** The Excel Online (Business) connector's **Run script** action requires the file to be accessible in a SharePoint or OneDrive location. Since the uploaded file arrives as raw file content from the agent, you must **first save it to a temporary location** before running the script. Add a **Create file** action (SharePoint) before the Run script action to write the uploaded file content to a temporary path.
+
 > **Option A — Office Scripts (Recommended for .xlsx files):**
 > Use the **Run script** action (Excel Online Business connector) with an Office Script that returns sheet names. This is the most reliable approach for listing sheet names.
 
+**Step A1: Save file temporarily for script access**
+
 1. Click **+** → **Add an action**
+2. Search for `SharePoint` → Select **Create file**
+3. Configure:
+   - **Site Address**: Select your SharePoint site — **PLACEHOLDER – replace with your site**
+   - **Folder Path**: `/Uploads/temp` — **PLACEHOLDER – replace with your temp folder**
+   - **File Name**: Expression: `triggerBody()?['uploadedFiles']?['name']`
+   - **File Content**: Expression: `triggerBody()?['uploadedFiles']?['contentBytes']`
+4. Rename to: `Save Temp File For Validation`
+
+**Step A2: Create the Office Script**
+
+1. Open Excel Online (go to your SharePoint site, open any Excel file)
+2. Click the **Automate** tab in the ribbon
+3. Click **New Script** (or **Script Editor**)
+4. Delete any default code and paste the following:
+   ```typescript
+   function main(workbook: ExcelScript.Workbook): string[] {
+     return workbook.getWorksheets().map(sheet => sheet.getName());
+   }
+   ```
+5. Name the script: `List Sheet Names`
+6. Click **Save** — the script is saved to your OneDrive under `Documents/Office Scripts/`
+
+**Step A3: Add the Run Script action**
+
+1. Back in the Power Automate flow designer, click **+** → **Add an action**
 2. Search for `Excel Online` → Select **Run script** (Excel Online Business)
 3. Configure:
-   - **Location**: The storage location where the file will be temporarily available
-   - **Document Library / File**: Reference the uploaded file content
-   - **Script**: Create an Office Script that returns sheet names:
-     ```typescript
-     function main(workbook: ExcelScript.Workbook): string[] {
-       return workbook.getWorksheets().map(sheet => sheet.getName());
-     }
-     ```
+   - **Location**: Select your SharePoint site — **PLACEHOLDER – replace with your site**
+   - **Document Library**: Select the library where you saved the temp file (e.g., `Uploads`)
+   - **File**: Use the file identifier from the "Save Temp File For Validation" action output
+   - **Script**: Select `List Sheet Names` from the dropdown (the script you created in Step A2)
+4. Rename to: `List Sheet Names`
 
 > **Option B — Parse Excel directly:**
-> If Office Scripts are not available, use a Compose action with the file content and extract sheet names using available connectors. The exact approach depends on your connector availability.
+> If Office Scripts are not available in your environment, use a Compose action with the file content and extract sheet names using available connectors. The exact approach depends on your connector availability and licensing.
 
 ##### Step 5.5.4: Configure Flow Outputs
 
 1. Click on the **Respond to the agent** action
-2. Add outputs:
+2. Add outputs (replace the action name in expressions with **your actual action name** from Step A3 — e.g., if you renamed the action to `List Sheet Names`, the internal name becomes `List_Sheet_Names`):
    - **Name**: `sheetNames` | **Type**: Text | **Value**: Expression:
      ```
-     coalesce(string(outputs('Run_script')?['body']?['result']), '[]')
+     coalesce(string(outputs('List_Sheet_Names')?['body']?['result']), '[]')
      ```
    - **Name**: `sheetCount` | **Type**: Text | **Value**: Expression:
      ```
-     string(length(outputs('Run_script')?['body']?['result']))
+     string(length(outputs('List_Sheet_Names')?['body']?['result']))
      ```
    - **Name**: `status` | **Type**: Text | **Value**: Expression:
      ```
-     if(length(outputs('Run_script')?['body']?['result']), 'SheetsFound', 'NoRequiredSheets')
+     if(length(outputs('List_Sheet_Names')?['body']?['result']), 'SheetsFound', 'NoRequiredSheets')
      ```
 
-> **Note:** Wrap every dynamic output in `coalesce()` to prevent null errors. If the script returns no sheets, the status defaults to `"NoRequiredSheets"`.
+> **Note:** Replace `'List_Sheet_Names'` in the expressions above with the internal name of your Run script action (the display name with spaces replaced by underscores). Wrap every dynamic output in `coalesce()` to prevent null errors. If the script returns no sheets, the status defaults to `"NoRequiredSheets"`.
 
 ##### Step 5.5.5: Save and Publish
 
@@ -2363,7 +2397,7 @@ After the LLM completes the consolidation analysis, the agent generates a CSV-fo
 > **Design principle:** CSV generation is a text-formatting task that the LLM handles naturally. By generating the CSV in the agent topic, we avoid an unnecessary Power Automate flow and keep the processing within the LLM-first architecture.
 
 1. Click **+** → **Send a message**
-2. Enter the following LLM prompt:
+2. Enter the following LLM prompt (insert the `Global.consolidatedApplications` variable using the **{x}** variable picker — click **{x}**, select **Global.consolidatedApplications**, and it will be inserted as a dynamic variable reference):
 
 ```
 Now generate a CSV-formatted dedup report from the consolidated application data
@@ -2385,14 +2419,16 @@ After the CSV, provide a brief summary: total unique applications, total noise r
 and total duplicates consolidated.
 ```
 
+> **Note on variable insertion:** In Copilot Studio message nodes, use the **{x}** variable picker button to insert variables. Place your cursor where the variable should appear, click **{x}**, and select the variable from the list. Copilot Studio will display it as `{Global.consolidatedApplications}` in the editor and resolve it to the actual value at runtime.
+
 3. Click **+** → **Set a variable value**
-4. Set variable: **Global.applicationDedupCSV** (create as a new Global String variable if it does not exist)
+4. Set variable: **Global.applicationDedupCSV** (create as a new Global String variable if it does not exist — see Step 3 for creation instructions)
    - Change scope to "Global"
-5. Value: Set to the LLM's CSV output
+5. Value: In Copilot Studio, the LLM's response is displayed to the user in the chat but is not automatically captured into a variable. To store the CSV output, use one of these approaches:
+   - **Option A (Recommended):** Add a subsequent **Ask a question** node that prompts: `"The CSV report is displayed above. Would you like to proceed to the next analysis step?"` — this keeps the flow moving while the CSV is visible for the user to copy. The CSV data is already available as part of `Global.consolidatedApplications` (JSON format) for the report generator.
+   - **Option B:** If you need the raw CSV stored, add a lightweight Power Automate tool that accepts the JSON from `Global.consolidatedApplications` and converts it to CSV format using a Compose action, returning the CSV string.
 
-> **Note**: The LLM generates the CSV text directly from the consolidated JSON data already in memory. No Power Automate flow or file write is required. The user sees the CSV summary inline in the conversation and can copy it. The CSV is also stored in `Global.applicationDedupCSV` for optional inclusion in the final report.
-
-> **Tip**: To keep the CSV output clean, add to your LLM prompt: *"Return ONLY the CSV content inside the code block, with no other text before the code block."* This ensures the variable captures clean CSV data.
+> **Note**: The LLM generates the CSV text directly from the consolidated JSON data already in memory. No Power Automate flow or file write is required for display. The user sees the CSV summary inline in the conversation and can copy it. For the final report, Agent 5 uses the JSON data from `Global.consolidatedApplications` — the CSV is a user-facing convenience output.
 
 #### Step 4.7: Add Confirmation Message
 
