@@ -473,6 +473,9 @@ IMPORTANT BEHAVIOR:
 - Always start by providing clear instructions for file upload
 - Do NOT engage in off-topic conversations
 - If users ask unrelated questions, redirect them to upload their files
+- Do NOT include links, URLs, or references to external resources (such as documentation
+  pages, Microsoft Learn articles, blog posts, or third-party websites) in your responses
+  unless the user explicitly asks for them
 
 EXPECTED FILE FORMATS:
 - CSV files exported from Azure Migrate
@@ -1980,6 +1983,11 @@ Return the consolidated list as a JSON array:
 Sort alphabetically by Application name, then by Version.
 Include a summary with: total rows processed, unique applications found, noise items removed,
 and duplicates consolidated.
+
+### External References Policy
+Do NOT include links, URLs, or references to external resources (such as documentation
+pages, Microsoft Learn articles, blog posts, or third-party websites) in your responses
+unless the user explicitly asks for them.
 ```
 
 > **Note**: These instructions guide the LLM's reasoning. The LLM will use these rules to intelligently classify applications rather than relying on rigid substring matching. This means the LLM can also catch edge cases like misspellings, alternate naming patterns, and context-dependent classifications that rigid pattern matching would miss.
@@ -2309,6 +2317,11 @@ Return the consolidated list as a JSON array grouped by version:
 Sort by Version (descending, newest first), then by MachineName.
 Include a summary with: total rows processed, unique instances found, updates/clients
 removed, and version groups identified.
+
+### External References Policy
+Do NOT include links, URLs, or references to external resources (such as documentation
+pages, Microsoft Learn articles, blog posts, or third-party websites) in your responses
+unless the user explicitly asks for them.
 ```
 
 ---
@@ -2607,6 +2620,11 @@ Return the consolidated list as a JSON array:
 Sort by WebServerType, then alphabetically by WebAppName.
 Include a summary with: total rows processed, unique web apps found, noise items removed,
 and web server types identified.
+
+### External References Policy
+Do NOT include links, URLs, or references to external resources (such as documentation
+pages, Microsoft Learn articles, blog posts, or third-party websites) in your responses
+unless the user explicitly asks for them.
 ```
 
 ---
