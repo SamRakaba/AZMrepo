@@ -28,13 +28,14 @@ A comprehensive guide for building Copilot Studio agents that use LLM-based anal
 This guide provides step-by-step instructions for building a suite of Microsoft Copilot Studio agents that:
 
 1. **Accept file uploads** - Allow users to upload one or more Azure Migrate export CSV files
-2. **Process Application Inventory** - Use the Copilot agent's LLM reasoning to analyze the `ApplicationInventory` sheet, identify noise (patches, updates, OS components, drivers), consolidate applications by exact name match, and preserve version variants as separate entries
-3. **Process SQL Server Inventory** - Use the Copilot agent's LLM reasoning to analyze SQL Server sheets, consolidate instances, group by version, remove updates and dependent clients, and generate a unique list of SQL Server versions and entries
-4. **Process Web App Inventory** - Use the Copilot agent's LLM reasoning to analyze web application/web server sheets and produce a unique list of web apps
-5. **Generate Reports** - Create a consolidated spreadsheet with sheets for unique applications, SQL Server instances, and web apps
-6. **Enable Download** - Provide users with a downloadable link to the generated spreadsheet
+2. **Verify sheet compliance** - Use the LLM to verify that the uploaded file contains the required sheets (ApplicationInventory, SQL Server, WebApplications) and report which sheets are present or missing
+3. **Process Application Inventory** - Use the Copilot agent's LLM reasoning to analyze the `ApplicationInventory` sheet, identify noise (patches, updates, OS components, drivers), consolidate applications by exact name match, preserve version variants as separate entries, and generate a CSV dedup report
+4. **Process SQL Server Inventory** - Use the Copilot agent's LLM reasoning to analyze SQL Server sheets, consolidate instances, group by version, remove updates and dependent clients, and generate a unique list of SQL Server versions and entries
+5. **Process Web App Inventory** - Use the Copilot agent's LLM reasoning to analyze web application/web server sheets and produce a unique list of web apps
+6. **Generate Reports** - Create a consolidated spreadsheet with sheets for unique applications, SQL Server instances, and web apps
+7. **Enable Download** - Provide users with a downloadable link to the generated spreadsheet
 
-> **Key Design Principle:** Agents 2, 3, and 4 use the Copilot agent's LLM model to perform all analysis, consolidation, and noise detection. Power Automate is used **only** when needed — specifically for reading raw data from files and writing results to spreadsheets. This LLM-first approach replaces the previous pattern-matching and loop-based Power Automate logic with intelligent reasoning.
+> **Key Design Principle:** Agents 2, 3, and 4 use the Copilot agent's LLM model to perform all analysis, consolidation, noise detection, and CSV report generation. Power Automate is used **only** when needed — specifically for reading raw data from files (including sheet names for validation) and writing the final report. Data is kept in memory via global variables wherever possible, with persistent storage used only for the final downloadable report. This LLM-first approach replaces the previous pattern-matching and loop-based Power Automate logic with intelligent reasoning.
 
 ### Azure Migrate CSV File Structure
 
@@ -95,9 +96,11 @@ The Azure Migrate export files contain the following sheets:
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     AGENT 1: File Upload Handler                            │
 │  • Accepts CSV file uploads                                                 │
-│  • Validates file format                                                    │
-│  • Stores files in temporary storage (Azure Blob Storage recommended)       │
-│  • Coordinates LLM-based processing via topic redirects                     │
+│  • LLM verifies sheet compliance (required sheets present/missing)         │
+│  • Reports compliance status to user (✅/❌ per sheet)                      │
+│  • Stores files in storage only when needed (in-memory preferred)          │
+│  • Coordinates LLM-based processing via conditional topic redirects        │
+│  • Skips processing for missing sheets                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                     ┌─────────────────┼─────────────────┐
@@ -112,6 +115,8 @@ The Azure Migrate export files contain the following sheets:
 │   exact name match    │ │ • LLM removes updates │ │ • LLM removes noise   │
 │ • LLM preserves       │ │   & dependent clients │ │ • Generate unique list│
 │   version variants    │ │ • Generate unique list│ │                       │
+│ • LLM generates CSV   │ │                       │ │                       │
+│   dedup report        │ │                       │ │                       │
 │ • Generate unique list│ │                       │ │                       │
 └───────────────────────┘ └───────────────────────┘ └───────────────────────┘
                     │                 │                 │
@@ -119,9 +124,9 @@ The Azure Migrate export files contain the following sheets:
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     AGENT 5: Report Generator                               │
-│  • Combine processed data from all agents                                   │
-│  • Create multi-sheet Excel file (Power Automate)                           │
-│  • Store in temporary storage (Azure Blob Storage or SharePoint/OneDrive)   │
+│  • Combine processed data from all agents (in-memory via Global vars)      │
+│  • Create multi-sheet Excel file (Power Automate — only persistent I/O)    │
+│  • Store report in Azure Blob Storage or SharePoint (download link only)   │
 │  • Generate download link                                                   │
 │  • Notify user with download URL                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -130,8 +135,9 @@ The Azure Migrate export files contain the following sheets:
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     Copilot Agent Orchestration                              │
 │  • Agent topics coordinate processing sequence                              │
-│  • LLM performs all analysis and consolidation                              │
-│  • Power Automate used only for file I/O                                    │
+│  • LLM verifies sheets, performs analysis, generates CSV reports           │
+│  • Data passed in-memory via Global variables (no intermediate storage)    │
+│  • Power Automate used only for reading file data and writing final report │
 │  • Error handling and user notifications                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -140,13 +146,14 @@ The Azure Migrate export files contain the following sheets:
 
 | Component | Purpose | Technology |
 |-----------|---------|------------|
-| File Upload Handler | Accept CSV files, store in temp storage, coordinate processing topics | Copilot Studio + Power Automate (file storage only) |
-| Temporary Storage | Store uploaded files temporarily | Azure Blob Storage (recommended) or SharePoint |
-| App Inventory Processor | LLM-based application consolidation and noise detection | Copilot Studio LLM + Power Automate (data read only) |
+| File Upload Handler | Accept CSV files, verify sheet compliance (LLM), coordinate processing topics | Copilot Studio + Power Automate (sheet validation and optional file storage) |
+| Sheet Validation | LLM verifies required sheets exist, reports compliance to user | Copilot Studio LLM + Power Automate (read sheet names only) |
+| Temporary Storage | Store uploaded files only when needed (large files, multi-session, audit) | Azure Blob Storage (recommended) or SharePoint — in-memory preferred for processing |
+| App Inventory Processor | LLM-based application consolidation, noise detection, and CSV dedup report | Copilot Studio LLM + Power Automate (data read only) |
 | SQL Server Processor | LLM-based SQL Server consolidation and version grouping | Copilot Studio LLM + Power Automate (data read only) |
 | Web App Processor | LLM-based web application consolidation | Copilot Studio LLM + Power Automate (data read only) |
-| Report Generator | Create final spreadsheet with consolidated data | Power Automate + Excel Connector |
-| Orchestration | Agent topics coordinate workflow via LLM | Copilot Studio Topics |
+| Report Generator | Create final spreadsheet with consolidated data (only step requiring persistent storage) | Power Automate + Excel Connector |
+| Orchestration | Agent topics coordinate workflow via LLM, conditional on sheet compliance | Copilot Studio Topics |
 
 ---
 
@@ -330,13 +337,14 @@ If you prefer to use SharePoint for storage (requires users have SharePoint acce
 ## Agent 1: File Upload Handler
 
 ### Purpose
-This agent is the **starting point of the Azure Migrate processing flow**. It provides users with instructions to upload Azure Migrate extracted CSV files, accepts the file uploads, validates them, stores files in temporary storage (Azure Blob Storage recommended), and coordinates the LLM-based processing sequence by redirecting to the analysis topics (Agents 2, 3, 4) in order.
+This agent is the **starting point of the Azure Migrate processing flow**. It provides users with instructions to upload Azure Migrate extracted CSV files, accepts the file uploads, **uses the LLM to verify sheet compliance** (checking that required sheets exist and reporting which are missing), stores files when needed, and coordinates the LLM-based processing sequence by conditionally redirecting to the analysis topics (Agents 2, 3, 4) only for verified sheets.
 
 > **Important**: This agent is:
 > - **NOT conversational** - It follows a structured flow without general chat capabilities
 > - **Triggered on file(s) upload** - The main flow activates when users upload files
-> - **The coordinator of the processing flow** - After upload, it triggers each LLM analysis topic in sequence (Application → SQL Server → Web App → Report)
-> - Designed to work with Azure Blob Storage as temporary storage, which does NOT require users to have SharePoint or OneDrive access
+> - **Sheet compliance verifier** - The LLM checks the uploaded file for required sheets (ApplicationInventory, SQL Server, WebApplications) and reports ✅/❌ status for each before processing
+> - **The coordinator of the processing flow** - After verification, it triggers each LLM analysis topic **only for sheets that are present** (skipping missing sheets)
+> - Designed to work with **in-memory data passing** where possible, using persistent storage (Azure Blob Storage) **only for the final report**
 
 ### Storage Options
 
@@ -464,8 +472,9 @@ You are the Azure Migrate File Handler agent. Your role is to:
 
 1. GUIDE users to upload Azure Migrate extracted CSV files
 2. ACCEPT file uploads (CSV or Excel format) containing Azure Migrate export data
-3. VALIDATE uploaded files have the expected format
-4. COORDINATE the LLM-based processing workflow after successful upload
+3. VERIFY that uploaded Excel files contain the required sheets before processing
+4. REPORT sheet compliance status to the user, identifying missing or non-compliant sheets
+5. COORDINATE the LLM-based processing workflow after successful validation
 
 IMPORTANT BEHAVIOR:
 - You are NOT a general-purpose conversational agent
@@ -483,32 +492,62 @@ EXPECTED FILE FORMATS:
   (The file may also contain a Database sheet — this is accepted but not processed by
   the current agents)
 
-PROCESSING ARCHITECTURE (LLM-first approach):
-- After the file is uploaded and stored, you coordinate the processing sequence
-  by triggering each analysis topic in order
+SHEET VERIFICATION (LLM-based compliance check):
+After receiving the uploaded file, you MUST verify sheet compliance before processing:
+1. Call the "Validate Excel Sheets" tool to retrieve the list of sheet names in the file
+2. Compare the returned sheet names against the REQUIRED sheets:
+   - ApplicationInventory (REQUIRED for application processing)
+   - SQL Server (REQUIRED for SQL Server processing)
+   - WebApplications (REQUIRED for web app processing)
+   - Database (OPTIONAL — accepted but not processed)
+3. Report compliance status to the user:
+   - ✅ List each REQUIRED sheet that IS present
+   - ❌ List each REQUIRED sheet that is MISSING
+   - ℹ️ Note any OPTIONAL sheets found (e.g., Database)
+   - ⚠️ Flag any UNEXPECTED sheets not in the known list
+4. DECISION LOGIC:
+   - If ALL three required sheets are present → proceed with full processing
+   - If SOME required sheets are missing → inform the user which sheets are missing,
+     proceed with processing ONLY the sheets that are present, and skip the topics
+     for missing sheets
+   - If NO required sheets are found → halt processing and ask the user to upload
+     a valid Azure Migrate export file
+
+PROCESSING ARCHITECTURE (LLM-first, in-memory approach):
+- After sheet verification passes, coordinate the processing sequence by triggering
+  each analysis topic in order
+- Data is kept IN MEMORY via global variables wherever possible — the uploaded file
+  content is passed directly to data extraction tools without requiring intermediate
+  storage. Persistent storage (Azure Blob or SharePoint) is used ONLY for the final
+  generated report that the user needs to download
 - Agents 2, 3, and 4 use your LLM reasoning to analyze raw data from the file.
-  Power Automate is used ONLY for reading raw data from files and writing results
-  to spreadsheets — all consolidation and noise detection is performed by LLM
+  Power Automate is used ONLY for reading raw data from files and writing the final
+  report — all consolidation, noise detection, and CSV generation is performed by LLM
   analysis within Copilot Studio topics
 - The processing sequence is:
-  1. "Process Application Inventory" topic — LLM analyzes and consolidates apps
+  1. "Process Application Inventory" topic — LLM analyzes, consolidates, and generates
+     a CSV summary of deduplicated applications
   2. "Process SQL Server Inventory" topic — LLM consolidates SQL instances
   3. "Process Web App Inventory" topic — LLM consolidates web apps
-  4. Report generation — consolidated data written to a spreadsheet
+  4. Report generation — consolidated data written to a downloadable spreadsheet
 
 WORKFLOW:
 1. Greet the user and explain the purpose
 2. Provide instructions for uploading Azure Migrate CSV files
 3. Wait for file upload
-4. Store the uploaded file and record the file path
-5. Trigger the processing topics in sequence (Application → SQL → Web App → Report)
-6. Provide the user with a download link to the consolidated report
+4. VERIFY sheet compliance using the "Validate Excel Sheets" tool
+5. Report sheet compliance status to the user (which sheets are present/missing)
+6. Trigger the processing topics in sequence ONLY for verified sheets
+   (Application → SQL → Web App → Report)
+7. After application dedup, present the CSV summary to the user
+8. Provide the user with a download link to the consolidated report
 
 RESPONSE STYLE:
 - Be concise and professional
 - Use bullet points for instructions
-- Include emojis sparingly for visual clarity (📋, ✅, ⬆️, 📁)
+- Include emojis sparingly for visual clarity (📋, ✅, ⬆️, 📁, ❌, ⚠️)
 - Always confirm actions and next steps
+- When reporting sheet compliance, use a clear table or list format
 ```
 
 5. Click the **Save** button at the top of the page
@@ -712,6 +751,8 @@ After saving the topic, verify your global variables are created:
 │ Global.consolidatedApplications    │ String  │ LLM-analyzed unique application list (JSON)         │
 │ Global.consolidatedSQLInstances    │ String  │ LLM-analyzed unique SQL Server list (JSON)          │
 │ Global.consolidatedWebApps         │ String  │ LLM-analyzed unique web app list (JSON)             │
+│ Global.applicationDedupCSV         │ String  │ LLM-generated CSV dedup report for applications    │
+│ Global.detectedSheets              │ String  │ Sheet names found in uploaded file (JSON array)     │
 └────────────────────────────────────┴─────────┴────────────────────────────────────────────────────┘
 ```
 
@@ -894,64 +935,125 @@ Welcome! I'm your Azure Migrate CSV Processor. 🤖
 ```
 ✅ **Files received successfully!**
 
-I'll now store your file and begin the AI-powered analysis. The processing sequence is:
+I'll now verify the file structure before starting the AI-powered analysis.
 
-1. 📁 Storing file in temporary storage
-2. 📊 Analyzing Application Inventory (LLM-based noise detection & consolidation)
-3. 🗄️ Analyzing SQL Server Inventory (LLM-based version grouping & consolidation)
-4. 🌐 Analyzing Web App Inventory (LLM-based consolidation)
-5. 📝 Generating your consolidated report
-
-⏳ Each step will provide a summary as it completes.
+⏳ Checking sheet compliance...
 ```
 
 5. Click outside the text area to save the message
 
+**Part A.1: Add Sheet Verification Tool Call (LLM-Based Compliance Check)**
+
+> **Key Enhancement:** Before processing begins, the LLM verifies that the uploaded Excel file contains the required sheets. This prevents runtime errors from missing sheets and gives users clear, actionable feedback about their file's compliance.
+
+6. Click the **+** (Add node) button below the confirmation message
+7. From the dropdown menu, select **Add a tool**
+8. Select the **Validate Excel Sheets** tool (created in Step 5.5 below)
+   - If the tool is not yet created, add a placeholder message node and return here after Step 5.5
+9. **Map the inputs** on the Action node:
+   - `uploadedFiles` → `Topic.uploadedFiles` (the file from the Question node)
+10. **Store the outputs** in topic variables:
+    - `sheetNames` → `Topic.detectedSheets`
+    - `sheetCount` → `Topic.sheetCount`
+    - `status` → `Topic.validationStatus`
+
+11. Click the **+** (Add node) button below the tool call
+12. Select **Send a message**
+13. Enter the following LLM analysis prompt:
+
+```
+I have detected the following sheets in the uploaded file:
+{Topic.detectedSheets}
+
+Compare these against the REQUIRED sheets listed in your SHEET VERIFICATION instructions.
+Report a compliance summary to the user using this format:
+
+📋 **Sheet Compliance Report:**
+- For each required sheet (ApplicationInventory, SQL Server, WebApplications):
+  show ✅ if PRESENT or ❌ if MISSING
+- For the optional Database sheet: show ℹ️ if present
+- For any unexpected sheets: show ⚠️
+
+Then state which processing steps will proceed and which will be skipped.
+```
+
+> **How it works:** The "Validate Excel Sheets" tool (a lightweight Power Automate flow) reads sheet names from the file and returns them to the agent. The LLM then applies its SHEET VERIFICATION instructions to compare the sheet list against expected names and generates a compliance report. This keeps the intelligence in the LLM while Power Automate handles only the mechanical task of reading sheet metadata.
+
+14. Click the **+** (Add node) button below the LLM analysis message
+15. Select **Add a condition**
+16. Configure the condition:
+    - Variable: `Topic.validationStatus`
+    - Operator: **is equal to**
+    - Value: `"NoRequiredSheets"`
+
+17. **For the TRUE branch** (no required sheets found):
+    - Click **+** → **Send a message**
+    - Enter:
+    ```
+    ❌ **File validation failed.**
+
+    The uploaded file does not contain any of the required sheets
+    (ApplicationInventory, SQL Server, or WebApplications).
+
+    Please verify you are uploading an Azure Migrate export file and try again.
+    ```
+    - Click **+** → **Redirect to another topic** → Select **Welcome and Upload Instructions**
+
+18. **For the FALSE branch** (at least one required sheet found — proceed with processing):
+
 **Part B: Add a Power Automate Flow Call Node (File Upload)**
 
 > **Note:** The Power Automate agent flow that stores the uploaded files will be fully configured in **Step 5**. The steps below add the flow tool node to the canvas now so the topic structure is complete. You will return here to configure the inputs and outputs once the flow is ready.
+>
+> **Storage note:** File storage is used primarily for the final report generation. See the [Storage Analysis](#storage-analysis-in-memory-vs-persistent-storage) section below for guidance on when in-memory data passing can replace persistent storage.
 
-6. Click the **+** (Add node) button below the message node you just added (still inside the TRUE branch)
-7. From the dropdown menu, select **Add a tool**
-8. You have two options in the tool selection panel:
+19. Click the **+** (Add node) button below the FALSE branch (still inside the TRUE branch)
+20. From the dropdown menu, select **Add a tool**
+21. You have two options in the tool selection panel:
    - **New Agent flow** – Select this to create a new agent flow template with the required trigger and response action already configured. You will build the processing logic in Step 5. For now, click **Publish** to save the empty template, then click **Go back to agent**.
    - **Select an existing flow** – If you have already created and published the **Handle File Upload – Azure Migrate** flow (from Step 5), select it here.
-9. If you created a new agent flow template and returned to the topic, an **Action** node will appear in the canvas — this is expected and will be fully configured in Step 5.
+22. If you created a new agent flow template and returned to the topic, an **Action** node will appear in the canvas — this is expected and will be fully configured in Step 5.
 
 > **Tip:** If you prefer to skip adding the flow tool for now, you can come back after completing Step 5. Locate the TRUE branch in this topic, click **+**, select **Add a tool**, and choose the flow to add and configure it at that point.
 
-**Part C: Add Topic Redirects for LLM-Based Processing Sequence**
+**Part C: Add Topic Redirects for LLM-Based Processing Sequence (Conditional on Sheet Compliance)**
 
-After the file upload flow returns, the agent coordinates the processing by redirecting to each analysis topic in sequence. Each topic (Agent 2, 3, 4) calls its own data extraction tool, then the LLM analyzes the raw data and stores the results in a global variable.
+After file upload and sheet verification, the agent coordinates processing by redirecting to each analysis topic **only for sheets that passed compliance**. Each topic (Agent 2, 3, 4) calls its own data extraction tool, then the LLM analyzes the raw data and stores the results in a global variable.
 
 > **Note:** The processing topics referenced below are created in Agents 2, 3, and 4 respectively. You will add these redirect nodes after completing those agent sections. For now, you can add placeholder "Send a message" nodes or skip this part and return later.
 
-10. Click the **+** (Add node) button below the Action node (still inside the TRUE branch)
-11. From the dropdown menu, select **Redirect to another topic**
-12. Select: **Process Application Inventory** (created in Agent 2, Step 4)
-    - This topic calls the "Read Application Inventory Data" tool, then the LLM analyzes the data and stores results in `Global.consolidatedApplications`
+23. Click the **+** (Add node) button below the Action node (still inside the TRUE branch)
+24. Select **Add a condition** to check for the ApplicationInventory sheet:
+    - Use an LLM-driven condition or check if `Topic.detectedSheets` contains "ApplicationInventory"
+    - **TRUE**: Add **Redirect to another topic** → Select **Process Application Inventory** (created in Agent 2, Step 4)
+      - This topic calls the "Read Application Inventory Data" tool, then the LLM analyzes the data, stores results in `Global.consolidatedApplications`, and generates a CSV dedup summary
+    - **FALSE**: Add **Send a message** → `⏭️ Skipping Application Inventory processing — sheet not found in file.`
 
-13. Click the **+** (Add node) button below the redirect
-14. Select **Redirect to another topic**
-15. Select: **Process SQL Server Inventory** (created in Agent 3, Step 4)
-    - This topic calls the "Read SQL Server Inventory Data" tool, then the LLM analyzes the data and stores results in `Global.consolidatedSQLInstances`
+25. Click the **+** (Add node) button below the previous step
+26. Select **Add a condition** to check for the SQL Server sheet:
+    - Check if `Topic.detectedSheets` contains "SQL Server"
+    - **TRUE**: Add **Redirect to another topic** → Select **Process SQL Server Inventory** (created in Agent 3, Step 4)
+      - This topic calls the "Read SQL Server Inventory Data" tool, then the LLM analyzes the data and stores results in `Global.consolidatedSQLInstances`
+    - **FALSE**: Add **Send a message** → `⏭️ Skipping SQL Server Inventory processing — sheet not found in file.`
 
-16. Click the **+** (Add node) button below the redirect
-17. Select **Redirect to another topic**
-18. Select: **Process Web App Inventory** (created in Agent 4, Step 4)
-    - This topic calls the "Read Web App Inventory Data" tool, then the LLM analyzes the data and stores results in `Global.consolidatedWebApps`
+27. Click the **+** (Add node) button below the previous step
+28. Select **Add a condition** to check for the WebApplications sheet:
+    - Check if `Topic.detectedSheets` contains "WebApplications"
+    - **TRUE**: Add **Redirect to another topic** → Select **Process Web App Inventory** (created in Agent 4, Step 4)
+      - This topic calls the "Read Web App Inventory Data" tool, then the LLM analyzes the data and stores results in `Global.consolidatedWebApps`
+    - **FALSE**: Add **Send a message** → `⏭️ Skipping Web App Inventory processing — sheet not found in file.`
 
-19. Click the **+** (Add node) button below the redirect
-20. Select **Send a message**
-21. Type:
+29. Click the **+** (Add node) button below the previous step
+30. Select **Send a message**
+31. Type:
 
 ```
-✅ **All inventory analysis complete!**
+✅ **All applicable inventory analysis complete!**
 
-📊 Your consolidated data is ready:
-• Application inventory analyzed and deduplicated
-• SQL Server instances consolidated and grouped by version
-• Web applications identified and consolidated
+📊 Your consolidated data is ready for the sheets that were present:
+• Application inventory — analyzed and deduplicated (CSV summary available)
+• SQL Server instances — consolidated and grouped by version
+• Web applications — identified and consolidated
 
 📝 Generating your final report now...
 ```
@@ -1524,6 +1626,105 @@ The flow now appears in the agent's list of tools.
 
 > **Tip:** You can also create this flow from the **Tools** page (**Add a tool** → **Flow** → select it) or directly in [Power Automate](https://make.powerautomate.com). Ensure the flow uses the **When an agent calls the flow** trigger and **Respond to the agent** action so it appears in the tool selection list.
 
+#### Step 5.5: Create the Validate Excel Sheets Tool (Power Automate Flow)
+
+This lightweight flow reads the sheet names from the uploaded Excel file and returns them to the agent. The LLM then performs the compliance check — Power Automate handles only the mechanical task of reading sheet metadata.
+
+> **Design principle:** This tool follows the LLM-first approach — it returns raw metadata (sheet names), and the LLM applies the compliance logic from its instructions. This avoids encoding business rules in Power Automate and keeps the intelligence in the agent.
+
+##### Step 5.5.1: Create the Flow
+
+1. In Power Automate, click **+ New flow** → **Instant cloud flow**
+2. Configure:
+   - **Flow name**: `Validate Excel Sheets - Azure Migrate`
+   - **Trigger**: Select **When an agent calls the flow**
+3. Click **Create**
+
+##### Step 5.5.2: Configure Flow Inputs
+
+1. Click on the trigger to expand it
+2. Add input:
+   - Click **+ Add an input** → **File**
+   - **Name**: `uploadedFiles`
+   - **Description**: `The uploaded Azure Migrate Excel file`
+
+##### Step 5.5.3: Add Office Script or Excel Action to List Sheets
+
+> **Option A — Office Scripts (Recommended for .xlsx files):**
+> Use the **Run script** action (Excel Online Business connector) with an Office Script that returns sheet names. This is the most reliable approach for listing sheet names.
+
+1. Click **+** → **Add an action**
+2. Search for `Excel Online` → Select **Run script** (Excel Online Business)
+3. Configure:
+   - **Location**: The storage location where the file will be temporarily available
+   - **Document Library / File**: Reference the uploaded file content
+   - **Script**: Create an Office Script that returns sheet names:
+     ```typescript
+     function main(workbook: ExcelScript.Workbook): string[] {
+       return workbook.getWorksheets().map(sheet => sheet.getName());
+     }
+     ```
+
+> **Option B — Parse Excel directly:**
+> If Office Scripts are not available, use a Compose action with the file content and extract sheet names using available connectors. The exact approach depends on your connector availability.
+
+##### Step 5.5.4: Configure Flow Outputs
+
+1. Click on the **Respond to the agent** action
+2. Add outputs:
+   - **Name**: `sheetNames` | **Type**: Text | **Value**: Expression:
+     ```
+     coalesce(string(outputs('Run_script')?['body']?['result']), '[]')
+     ```
+   - **Name**: `sheetCount` | **Type**: Text | **Value**: Expression:
+     ```
+     string(length(outputs('Run_script')?['body']?['result']))
+     ```
+   - **Name**: `status` | **Type**: Text | **Value**: Expression:
+     ```
+     if(length(outputs('Run_script')?['body']?['result']), 'SheetsFound', 'NoRequiredSheets')
+     ```
+
+> **Note:** Wrap every dynamic output in `coalesce()` to prevent null errors. If the script returns no sheets, the status defaults to `"NoRequiredSheets"`.
+
+##### Step 5.5.5: Save and Publish
+
+1. Click **Save** at the top-right
+2. Click **Publish** to make the flow available as a tool
+
+##### Step 5.5.6: Add the Tool to the Agent
+
+1. In Copilot Studio, go to **Tools** in the left navigation
+2. Click **+ Add a tool**
+3. Select **Validate Excel Sheets - Azure Migrate**
+4. Review:
+   - Input: `uploadedFiles` (File)
+   - Outputs: `sheetNames` (Text), `sheetCount` (Text), `status` (Text)
+5. Click **Add** to confirm
+
+##### Step 5.5.7: Verify Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│ When an agent calls the flow                                            │
+│ (Input: uploadedFiles — File)                                           │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Run script (Excel Online Business)                                      │
+│ Office Script: return sheet names as string array                       │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Respond to the agent                                                     │
+│ • sheetNames (JSON array of sheet name strings)                         │
+│ • sheetCount (number of sheets as text)                                 │
+│ • status ("SheetsFound" or "NoRequiredSheets")                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ### Step 6: Test the Agent
@@ -1570,7 +1771,14 @@ Testing Checklist for File Upload Handler:
 - [ ] File upload prompt works
 - [ ] File upload accepts CSV files
 - [ ] File upload accepts Excel files
-- [ ] Processing confirmation appears after upload
+- [ ] Sheet compliance report displays after upload (✅/❌ for each required sheet)
+- [ ] Missing required sheets are clearly identified with ❌
+- [ ] Present required sheets are clearly identified with ✅
+- [ ] Optional Database sheet is flagged with ℹ️ when present
+- [ ] Processing skips topics for missing sheets with skip message
+- [ ] File with no required sheets shows error and asks for re-upload
+- [ ] File with partial sheets processes only present sheets
+- [ ] Processing confirmation appears after upload and verification
 - [ ] Status check topic works
 - [ ] Help topic displays complete information
 - [ ] Off-topic requests are handled gracefully
@@ -1741,8 +1949,83 @@ This action builds the full path to the uploaded file in blob storage, which is 
 2. Verify:
    - [ ] Greeting message displays correctly
    - [ ] File upload prompt works
+   - [ ] Sheet compliance report displays correctly (shows ✅/❌ for each sheet)
+   - [ ] Missing sheets are reported with clear messaging
+   - [ ] Processing skips topics for missing sheets
    - [ ] File validation messages are appropriate
    - [ ] Processing confirmation is shown
+
+---
+
+### Storage Analysis: In-Memory vs. Persistent Storage
+
+This section analyzes whether saving the uploaded file to persistent storage (Azure Blob or SharePoint) is necessary, and evaluates the feasibility of keeping file contents in memory and passing them between agents via global variables.
+
+#### Do You Need to Save the File to Storage?
+
+| Scenario | Storage Needed? | Recommendation |
+|----------|----------------|----------------|
+| **Single-session processing** (user uploads, agent processes, user gets report — all in one conversation) | **No** — file data can stay in memory | Use in-memory approach via global variables |
+| **Large files** (Excel files > ~500 rows per sheet, or total data approaching Copilot Studio variable size limits) | **Yes** — global variables have size constraints | Save to storage; use file path for data extraction tools |
+| **Multi-session processing** (user uploads now, checks back later) | **Yes** — conversation state is lost between sessions | Save to storage with session ID for retrieval |
+| **Audit/compliance requirements** (need to retain uploaded source files) | **Yes** — need persistent record | Save to storage with appropriate retention policy |
+| **Final report download** | **Yes** — report must be stored to generate a download link | Save to Azure Blob or SharePoint for the report file only |
+
+#### In-Memory Data Passing: How It Works
+
+In the **in-memory approach**, the uploaded file content is passed directly to data extraction tools without writing to intermediate storage. The flow is:
+
+```
+┌──────────────┐    file content     ┌────────────────────┐    raw JSON     ┌───────────────┐
+│ User uploads  │ ──────────────────▶ │ Validate Sheets    │ ──────────────▶ │ LLM verifies  │
+│ file in chat  │    (in memory)      │ (PA tool — reads   │   (returned    │ sheet names   │
+│               │                     │  sheet names only) │   to agent)    │               │
+└──────────────┘                     └────────────────────┘                └───────────────┘
+                                                                                  │
+                                          file content passed via topic variable  │
+                                                                                  ▼
+┌──────────────────────────────────────────────────────────────────────────────────────────┐
+│ Data Extraction Tools (PA flows — one per sheet)                                          │
+│                                                                                          │
+│  • "Read Application Inventory Data" — receives file content, returns raw rows as JSON   │
+│  • "Read SQL Server Inventory Data" — receives file content, returns raw rows as JSON    │
+│  • "Read Web App Inventory Data" — receives file content, returns raw rows as JSON       │
+│                                                                                          │
+│  Each tool receives the file content directly from the topic variable — no storage       │
+│  read is needed. The raw JSON is returned to the agent for LLM analysis.                 │
+└──────────────────────────────────────────────────────────────────────────────────────────┘
+                                          │
+                          LLM analyzes data in Copilot Studio topics
+                          Results stored in Global variables (JSON strings)
+                                          │
+                                          ▼
+┌──────────────────────────────────────────────────────────────────────────────────────────┐
+│ Report Generation (Agent 5 — ONLY step that needs persistent storage)                    │
+│                                                                                          │
+│  • Receives consolidated JSON from Global variables                                      │
+│  • Creates Excel report in Azure Blob or SharePoint                                      │
+│  • Returns download link to user                                                         │
+└──────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Feasibility Assessment
+
+| Factor | In-Memory Approach | Persistent Storage Approach |
+|--------|-------------------|----------------------------|
+| **Copilot Studio variable size** | Global variables (String type) can hold JSON data. For typical Azure Migrate exports (100–500 rows per sheet), the serialized JSON fits well within limits. For very large exports (1000+ rows), test to confirm. | No size constraints — files stored externally |
+| **Power Automate usage** | Minimal — PA tools read data directly from file content passed as input. No storage read/write actions needed except for the final report. | PA tools read from storage (additional actions for blob/SharePoint read) |
+| **Latency** | Faster — no round-trip to storage | Slower — write to storage, then read back |
+| **Reliability** | Data is tied to conversation session. If the session drops, data is lost. | Data persists across sessions |
+| **LLM-first alignment** | ✅ Fully aligned — minimizes PA, keeps data in agent context | Requires more PA actions for storage I/O |
+
+#### Recommendation
+
+> **For most use cases, use the hybrid approach:**
+> 1. **In-memory** for processing — pass file content directly to data extraction tools and keep consolidated results in global variables
+> 2. **Persistent storage only for the final report** — the generated Excel spreadsheet must be saved to Azure Blob or SharePoint to produce a download link
+> 3. **Optional: save to storage** if you need multi-session support, audit trails, or handle very large files
+
+To implement the in-memory approach, modify the data extraction tools (Agents 2, 3, 4) to accept file content as an input parameter instead of a file path. The Handle File Upload flow can be simplified to only generate a session ID and pass file content back to the agent, without writing to blob storage.
 
 ---
 
@@ -1984,6 +2267,16 @@ Sort alphabetically by Application name, then by Version.
 Include a summary with: total rows processed, unique applications found, noise items removed,
 and duplicates consolidated.
 
+### CSV Dedup Report Generation
+After completing the JSON consolidation, generate a CSV-formatted dedup report when asked.
+The CSV should include:
+- Header row: Application,Version,Provider,MachineCount,Machines
+- One row per unique application+version entry
+- Machines column: semicolon-separated list of machine names
+- Values containing commas enclosed in double quotes
+- Sorted alphabetically by Application, then by Version
+This CSV is generated entirely by the LLM — no Power Automate flow is needed.
+
 ### External References Policy
 Do NOT include links, URLs, or references to external resources (such as documentation
 pages, Microsoft Learn articles, blog posts, or third-party websites) in your responses
@@ -2063,6 +2356,44 @@ instructions and return:
 
 > **Tip**: For reliable extraction, add a line to your LLM analysis prompt such as: *"Return ONLY the JSON array as your final message, with no additional text."* This makes it easier to store the entire response as the variable value.
 
+#### Step 4.6.1: Generate CSV Dedup Report (LLM-Generated)
+
+After the LLM completes the consolidation analysis, the agent generates a CSV-formatted summary of the deduplicated applications. This is done entirely by the LLM — no Power Automate flow is needed.
+
+> **Design principle:** CSV generation is a text-formatting task that the LLM handles naturally. By generating the CSV in the agent topic, we avoid an unnecessary Power Automate flow and keep the processing within the LLM-first architecture.
+
+1. Click **+** → **Send a message**
+2. Enter the following LLM prompt:
+
+```
+Now generate a CSV-formatted dedup report from the consolidated application data
+stored in {Global.consolidatedApplications}.
+
+Format the CSV report with the following columns:
+Application,Version,Provider,MachineCount,Machines
+
+Rules:
+- Include a header row as the first line
+- One row per unique application+version entry
+- MachineCount is the number of machines where this app+version was found
+- Machines is a semicolon-separated list of machine names
+- Enclose values containing commas in double quotes
+- Sort alphabetically by Application name, then by Version
+
+Present the CSV output in a code block so the user can easily copy it.
+After the CSV, provide a brief summary: total unique applications, total noise removed,
+and total duplicates consolidated.
+```
+
+3. Click **+** → **Set a variable value**
+4. Set variable: **Global.applicationDedupCSV** (create as a new Global String variable if it does not exist)
+   - Change scope to "Global"
+5. Value: Set to the LLM's CSV output
+
+> **Note**: The LLM generates the CSV text directly from the consolidated JSON data already in memory. No Power Automate flow or file write is required. The user sees the CSV summary inline in the conversation and can copy it. The CSV is also stored in `Global.applicationDedupCSV` for optional inclusion in the final report.
+
+> **Tip**: To keep the CSV output clean, add to your LLM prompt: *"Return ONLY the CSV content inside the code block, with no other text before the code block."* This ensures the variable captures clean CSV data.
+
 #### Step 4.7: Add Confirmation Message
 
 1. Click **+** → **Send a message**
@@ -2075,6 +2406,7 @@ instructions and return:
 - Total rows analyzed: {Topic.appRowCount}
 - Unique business applications identified
 - Noise removed: patches, updates, drivers, OS components, and dependencies
+- 📋 CSV dedup report generated above — you can copy it directly
 
 The consolidated application list has been stored and is ready for report generation.
 ```
@@ -2094,6 +2426,9 @@ The consolidated application list has been stored and is ready for report genera
    - Noise items (updates, patches, drivers) are correctly identified and excluded
    - Different versions of the same application are preserved as separate entries
    - The summary statistics are accurate
+   - A CSV dedup report is generated and displayed in a code block
+   - The CSV includes header row: Application,Version,Provider,MachineCount,Machines
+   - The CSV is properly formatted (commas, quoted values, sorted)
 
 #### Step 5.2: Validate Consolidation Rules
 
@@ -2103,6 +2438,16 @@ Test with sample data that includes:
 - Windows Updates and KB articles → should be removed as noise
 - Application-dependent drivers (e.g., "SQL Server Native Client") → should be removed
 - Legitimate business applications → should be preserved
+
+#### Step 5.3: Validate CSV Dedup Report
+
+Verify the LLM-generated CSV report:
+- Header row is present and matches expected format
+- Each unique application+version has exactly one row
+- MachineCount accurately reflects the number of machines
+- Machines column uses semicolons as separators
+- Values with commas are properly quoted
+- Report is sorted alphabetically by Application, then Version
 
 ---
 
