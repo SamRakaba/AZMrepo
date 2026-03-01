@@ -1491,7 +1491,7 @@ Whether you created the flow from a topic or from Power Automate directly, open 
    - Add output: Type: **Text**, Name: `status`, Value: `Processing`
    - Add output: Type: **Text**, Name: `message`, Value: `File uploaded successfully. Processing has started.`
 
-> **Important:** The `sessionId` and `filePath` outputs require Compose actions that do not exist yet — they are created in **Step 7**. At this point, enter any non-empty placeholder values to pass validation. In Step 7.4 (Option A) or Step 7.5 (Option B) you will replace them with dynamic expressions. If you try to enter the expressions now, Power Automate will show an error because the referenced actions have not been added yet.
+> **Important:** The `sessionId` and `filePath` outputs require Compose actions that do not exist yet — they are created in **Step 7**. At this point, enter any non-empty placeholder values to pass validation. In Step 7.4 you will replace them with dynamic expressions. If you try to enter the expressions now, Power Automate will show an error because the referenced actions have not been added yet.
 
 > **Important:** Every output parameter in the **Respond to the agent** action must have a value assigned at runtime. If your flow has conditional branches (e.g., a condition that checks whether processing is complete), ensure **each branch** includes a **Respond to the agent** action with all outputs populated. Leaving any output blank causes a `FlowActionException` error: "output parameter missing from response data."
 >
@@ -4527,18 +4527,12 @@ After processing the test files above:
 - "Unable to upload file" error
 - Timeout during upload
 
-**Solutions for Azure Blob Storage (Option A):**
+**Solutions:**
 1. Check file size (Azure Blob Storage supports up to 4.75 TB per blob)
 2. Verify Azure Blob Storage connection is configured correctly
 3. Check storage account firewall settings allow Power Automate access
 4. Ensure the container exists and has correct access permissions
 5. Verify SAS token hasn't expired (if using SAS authentication)
-
-**Solutions for SharePoint (Option B):**
-1. Check file size (SharePoint limit: 250MB)
-2. Verify SharePoint permissions
-3. Check Power Automate connection status
-4. Ensure file format is CSV or XLSX
 
 #### Issue 2: Sheet Not Found
 
@@ -4594,18 +4588,12 @@ After processing the test files above:
 - 404 error on download
 - Access denied
 
-**Solutions for Azure Blob Storage (Option A):**
+**Solutions:**
 1. Verify SAS token is valid and not expired
 2. Check SAS token has read permissions
 3. Ensure the blob path is correct
 4. Verify storage account firewall allows access from user's network
 5. Check if the blob was deleted by lifecycle management policy
-
-**Solutions for SharePoint (Option B):**
-1. Verify sharing link settings
-2. Check link expiration
-3. Ensure user has SharePoint access
-4. Use organization-wide sharing if appropriate
 
 #### Issue 6: Azure Blob Storage Connection Fails
 
@@ -4701,7 +4689,7 @@ Add error logging to your flows:
 
 ```
 Scope: Error Handling
-  - Create item (SharePoint List: ErrorLog)
+  - Create entity (Azure Table Storage: ErrorLog)
     - FlowName: @{workflow().name}
     - ErrorMessage: @{actions('FailedAction')?['error']?['message']}
     - Timestamp: @{utcNow()}
@@ -4726,7 +4714,6 @@ Scope: Error Handling
 - [Power Automate Documentation](https://learn.microsoft.com/en-us/power-automate/)
 - [Azure Blob Storage Connector](https://learn.microsoft.com/en-us/connectors/azureblob/)
 - [Azure Blob Storage Documentation](https://learn.microsoft.com/en-us/azure/storage/blobs/)
-- [SharePoint Connectors](https://learn.microsoft.com/en-us/connectors/sharepointonline/)
 - [Excel Online Connector](https://learn.microsoft.com/en-us/connectors/excelonlinebusiness/)
 
 ### Azure Blob Storage Resources
@@ -4840,12 +4827,11 @@ For applications:
 | Term | Definition |
 |------|------------|
 | **Azure Migrate** | Microsoft service for discovering, assessing, and migrating workloads to Azure |
-| **Azure Blob Storage** | Microsoft's object storage solution for the cloud, used for temporary file storage without requiring SharePoint/OneDrive access |
+| **Azure Blob Storage** | Microsoft's object storage solution for the cloud, used for file storage (uploads and reports) in this solution |
 | **CSV** | Comma-Separated Values file format |
 | **Copilot Studio** | Microsoft's no-code platform for building conversational AI agents |
 | **Power Automate** | Microsoft's workflow automation platform |
 | **SAS Token** | Shared Access Signature - a URI that grants restricted access to Azure Storage resources |
-| **SharePoint** | Microsoft's document management and collaboration platform |
 | **Consolidation** | Process of combining and deduplicating data |
 | **FQDN** | Fully Qualified Domain Name |
 | **Child Flow** | A Power Automate flow called from another flow |
@@ -4854,8 +4840,8 @@ For applications:
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: February 2026  
+**Document Version**: 1.1  
+**Last Updated**: March 2026  
 **Author**: AZMrepo Project Team
 
 ---
