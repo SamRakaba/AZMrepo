@@ -3162,51 +3162,51 @@ If creating from scratch:
 
 ---
 
-### Step 6: Build and Store the Report (Azure Function Approach)
+### Step 6: Build and Store the Report (GPT-4.1 Model Approach)
 
-> **Important:** The Excel Online (Business) connector's row-insertion actions require a file in a SharePoint or OneDrive location. Since this solution uses Azure Blob Storage exclusively, we recommend using an **Azure Function** to generate the Excel report and write it directly to Azure Blob Storage. This approach eliminates the dependency on SharePoint/OneDrive for report creation.
+> **Important:** The Excel Online (Business) connector's row-insertion actions require a file in a SharePoint or OneDrive location, which is not used in this solution. Instead, the **GPT-4.1 model** formats the consolidated data into structured CSV/JSON output within the agent conversation, and a Power Automate flow writes this data to Azure Blob Storage as a downloadable report. This approach eliminates the need for Azure Functions or custom code — all data formatting intelligence is handled by the GPT-4.1 model.
 
-#### Step 6.1: Create an Azure Function for Report Generation
+#### Step 6.1: GPT-4.1 Model Generates Report Data
 
-Create an HTTP-triggered Azure Function that:
-1. Accepts the consolidated data (applications, SQL instances, web apps) as JSON input
-2. Generates a multi-sheet Excel file using a library like **ClosedXML** (.NET) or **openpyxl** (Python)
-3. Uploads the generated file to Azure Blob Storage (container: `reports`)
-4. Returns the blob path for SAS URL generation
+The GPT-4.1 model (configured in the Copilot Studio agent) receives the consolidated data from Global variables and formats it into structured output suitable for report generation. The agent instructions should include a prompt like:
 
-> **Note:** The report template (`templates/ReportTemplate.xlsx`) created in Step 4 can be used as the base. The Azure Function reads the template from blob storage, populates each sheet's table with the provided data, and saves the result to the `reports` container.
+> **Prompt for GPT-4.1 model (include in Agent 5 Instructions):**
+> ```
+> When generating the consolidated report, format the data as follows:
+> 1. Take the uniqueApplications JSON from Global.consolidatedApplications
+> 2. Take the uniqueSQLInstances JSON from Global.consolidatedSQLInstances
+> 3. Take the uniqueWebApps JSON from Global.consolidatedWebApps
+> 4. Produce a structured JSON output containing all three datasets with
+>    their column headers, ready to be written as an Excel file
+> 5. Pass the formatted data to the "Generate Consolidated Report" tool
+> ```
 
-#### Step 6.2: Add HTTP Action to Call the Report Generator Function
+The model formats the data; the Power Automate flow handles only the file I/O (writing to Azure Blob Storage).
+
+#### Step 6.2: Add Power Automate Flow to Write the Report
+
+The Power Automate flow receives the GPT-4.1-formatted data and writes it to Azure Blob Storage:
 
 1. Click **+** → **Add an action**
-2. Search for `HTTP` → Select **HTTP** (built-in)
+2. Search for `Azure Blob Storage` → Select **Create blob (V2)**
 3. Configure:
-   - **Method**: `POST`
-   - **URI**: Your Azure Function URL — **PLACEHOLDER – replace with your function URL**
-   - **Headers**: `Content-Type`: `application/json`
-   - **Body**: Click **Expression** and enter:
-     ```json
-     {
-       "uniqueApplications": @{triggerBody()?['uniqueApplications']},
-       "uniqueSQLInstances": @{triggerBody()?['uniqueSQLInstances']},
-       "uniqueWebApps": @{triggerBody()?['uniqueWebApps']},
-       "sessionId": "@{triggerBody()?['sessionId']}",
-       "reportFileName": "@{variables('reportFileName')}"
-     }
-     ```
-4. Rename to: `Generate Excel Report`
+   - **Storage account name or blob endpoint**: Select your Azure Storage Account — **PLACEHOLDER – replace with your account**
+   - **Container**: `reports`
+   - **Blob name**: Expression: `concat(triggerBody()?['sessionId'], '/', variables('reportFileName'))`
+   - **Blob content**: Use the formatted report data from the trigger body (the GPT-4.1 model passes this as input to the tool)
+4. Rename to: `Write Report To Blob`
 
-#### Step 6.3: Set Report File Path from Function Response
+#### Step 6.3: Set Report File Path
 
 1. Click **+** → **Add an action**
 2. Select **Set variable**
 3. Configure:
    - **Name**: `reportFilePath`
-   - **Value**: Expression: `body('Generate_Excel_Report')?['reportFilePath']`
+   - **Value**: Expression: `concat(triggerBody()?['sessionId'], '/', variables('reportFileName'))`
 4. Rename to: `Set Report File Path`
 
-> **Alternative approach — Excel Online with OneDrive for Business:**
-> If you prefer to use the Excel Online (Business) connector for row insertion, the report template must be stored in a OneDrive for Business location (accessible to the flow's connection). This approach uses OneDrive for Business **only** for the report generation step — all other storage remains in Azure Blob Storage. After populating the Excel file, copy the final report to Azure Blob Storage for SAS-based download.
+> **Alternative approach — Excel template with Azure Function:**
+> If you need a multi-sheet Excel file (.xlsx) with formatted tables, you can use an Azure Function with a library like ClosedXML (.NET) or openpyxl (Python) to generate the Excel file. The GPT-4.1 model still performs all data consolidation and formatting — the Azure Function would only handle the Excel binary file creation. However, for many use cases, a CSV report generated entirely by the GPT-4.1 model is sufficient and avoids external dependencies.
 
 ---
 
@@ -3396,20 +3396,20 @@ If you have any questions, please contact your IT administrator.
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Generate Excel Report (Azure Function)                                   │
-│ • Reads template from Azure Blob Storage                                │
-│ • Populates sheets: UniqueApplications, UniqueSQLInstances, UniqueWebApps│
-│ • Saves report to Azure Blob Storage (reports container)                │
+│ Write Report To Blob (Azure Blob Storage)                                │
+│ • Receives GPT-4.1-formatted data from agent                            │
+│ • Writes report file to reports/{sessionId}/{reportFileName}            │
+│ • No Azure Function needed — model handles all data formatting          │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Set Report File Path (from function response)                            │
+│ Set Report File Path (from blob write)                                   │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Create Download Link (Azure Blob SAS URL)                                │
+│ Create Download Link (Azure Blob SAS URL via PA connector)               │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
