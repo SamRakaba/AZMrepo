@@ -35,7 +35,13 @@ This guide provides step-by-step instructions for building a suite of Microsoft 
 6. **Generate Reports** - Create a consolidated spreadsheet with sheets for unique applications, SQL Server instances, and web apps
 7. **Enable Download** - Provide users with a downloadable link to the generated spreadsheet
 
-> **Key Design Principle:** Agents 2, 3, and 4 use the Copilot agent's LLM model to perform all analysis, consolidation, noise detection, and CSV report generation. Power Automate is used **only** when needed — specifically for reading raw data from files (including sheet names for validation) and writing the final report. Data is kept in memory via global variables wherever possible, with persistent storage used only for the final downloadable report. This LLM-first approach replaces the previous pattern-matching and loop-based Power Automate logic with intelligent reasoning.
+> **Key Design Principle:** This solution uses a **GPT-4.1 associated model** (configured in Copilot Studio) as the primary engine for **all** validation, analysis, consolidation, noise detection, and report generation activities. The GPT-4.1 model:
+> - **Validates sheet compliance** by analyzing uploaded file content and identifying which required sheets are present or missing
+> - **Extracts and parses raw data** from file content passed via Power Automate tools
+> - **Performs all consolidation and deduplication** using intelligent reasoning instead of rigid pattern-matching
+> - **Generates structured output** (JSON, CSV) for report creation
+>
+> Power Automate is used **only** for file I/O operations — specifically for storing uploaded files to Azure Blob Storage and writing the final report. Data is kept in memory via global variables wherever possible, with persistent storage used only for the final downloadable report. This **GPT-4.1-first approach** eliminates the need for Azure Functions, custom code, or external compute — the model handles all intelligence directly within the Copilot Studio agent.
 
 ### Azure Migrate CSV File Structure
 
@@ -96,10 +102,10 @@ The Azure Migrate export files contain the following sheets:
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     AGENT 1: File Upload Handler                            │
 │  • Accepts CSV file uploads                                                 │
-│  • LLM verifies sheet compliance (required sheets present/missing)         │
+│  • GPT-4.1 verifies sheet compliance (required sheets present/missing)     │
 │  • Reports compliance status to user (✅/❌ per sheet)                      │
-│  • Stores files in storage only when needed (in-memory preferred)          │
-│  • Coordinates LLM-based processing via conditional topic redirects        │
+│  • Stores files in Azure Blob Storage for manipulation                     │
+│  • Coordinates GPT-4.1-based processing via conditional topic redirects    │
 │  • Skips processing for missing sheets                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
@@ -107,17 +113,17 @@ The Azure Migrate export files contain the following sheets:
                     ▼                 ▼                 ▼
 ┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────────┐
 │ AGENT 2: App Inventory│ │ AGENT 3: SQL Server   │ │ AGENT 4: Web App      │
-│ (LLM-based analysis)  │ │ (LLM-based analysis)  │ │ (LLM-based analysis)  │
-│ • Read raw app data   │ │ • Read raw SQL data   │ │ • Read raw web data   │
-│   (Power Automate)    │ │   (Power Automate)    │ │   (Power Automate)    │
-│ • LLM identifies noise│ │ • LLM consolidates    │ │ • LLM consolidates    │
-│ • LLM consolidates by │ │   by version          │ │   web apps            │
-│   exact name match    │ │ • LLM removes updates │ │ • LLM removes noise   │
-│ • LLM preserves       │ │   & dependent clients │ │ • Generate unique list│
-│   version variants    │ │ • Generate unique list│ │                       │
-│ • LLM generates CSV   │ │                       │ │                       │
-│   dedup report        │ │                       │ │                       │
-│ • Generate unique list│ │                       │ │                       │
+│ (GPT-4.1 analysis)    │ │ (GPT-4.1 analysis)    │ │ (GPT-4.1 analysis)    │
+│ • PA reads raw data   │ │ • PA reads raw data   │ │ • PA reads raw data   │
+│   from Blob Storage   │ │   from Blob Storage   │ │   from Blob Storage   │
+│ • GPT-4.1 identifies  │ │ • GPT-4.1 consolidates│ │ • GPT-4.1 consolidates│
+│   noise & consolidates│ │   by version          │ │   web apps            │
+│ • GPT-4.1 preserves   │ │ • GPT-4.1 removes     │ │ • GPT-4.1 removes     │
+│   version variants    │ │   updates & deps      │ │   noise               │
+│ • GPT-4.1 generates   │ │ • Generates unique    │ │ • Generates unique    │
+│   CSV dedup report    │ │   list                │ │   list                │
+│ • Generates unique    │ │                       │ │                       │
+│   list                │ │                       │ │                       │
 └───────────────────────┘ └───────────────────────┘ └───────────────────────┘
                     │                 │                 │
                     └─────────────────┼─────────────────┘
@@ -125,19 +131,20 @@ The Azure Migrate export files contain the following sheets:
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     AGENT 5: Report Generator                               │
 │  • Combine processed data from all agents (in-memory via Global vars)      │
-│  • Create multi-sheet Excel file (Power Automate — only persistent I/O)    │
+│  • GPT-4.1 formats data; PA writes Excel to Azure Blob Storage            │
 │  • Store report in Azure Blob Storage (download link only)                │
-│  • Generate download link                                                   │
+│  • Generate SAS download link via PA connector                             │
 │  • Notify user with download URL                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                     Copilot Agent Orchestration                              │
-│  • Agent topics coordinate processing sequence                              │
-│  • LLM verifies sheets, performs analysis, generates CSV reports           │
+│  • Agent topics coordinate processing sequence via GPT-4.1 model           │
+│  • GPT-4.1 verifies sheets, performs analysis, generates CSV reports       │
 │  • Data passed in-memory via Global variables (no intermediate storage)    │
-│  • Power Automate used only for reading file data and writing final report │
+│  • Power Automate used only for Blob Storage I/O and final report write   │
+│  • No Azure Functions required — all intelligence via GPT-4.1 model       │
 │  • Error handling and user notifications                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -146,14 +153,14 @@ The Azure Migrate export files contain the following sheets:
 
 | Component | Purpose | Technology |
 |-----------|---------|------------|
-| File Upload Handler | Accept CSV files, verify sheet compliance (LLM), coordinate processing topics | Copilot Studio + Power Automate (sheet validation and optional file storage) |
-| Sheet Validation | LLM verifies required sheets exist, reports compliance to user | Copilot Studio LLM + Power Automate (read sheet names only) |
-| Temporary Storage | Store uploaded files only when needed (large files, multi-session, audit) | Azure Blob Storage — in-memory preferred for processing |
-| App Inventory Processor | LLM-based application consolidation, noise detection, and CSV dedup report | Copilot Studio LLM + Power Automate (data read only) |
-| SQL Server Processor | LLM-based SQL Server consolidation and version grouping | Copilot Studio LLM + Power Automate (data read only) |
-| Web App Processor | LLM-based web application consolidation | Copilot Studio LLM + Power Automate (data read only) |
-| Report Generator | Create final spreadsheet with consolidated data (only step requiring persistent storage) | Power Automate + Excel Connector |
-| Orchestration | Agent topics coordinate workflow via LLM, conditional on sheet compliance | Copilot Studio Topics |
+| File Upload Handler | Accept CSV files, verify sheet compliance (GPT-4.1), coordinate processing topics | Copilot Studio (GPT-4.1) + Power Automate (file storage to Azure Blob) |
+| Sheet Validation | GPT-4.1 model analyzes file content to identify sheet names and verify compliance | Copilot Studio GPT-4.1 model + Power Automate (pass file content to agent) |
+| Temporary Storage | Store uploaded files in Azure Blob Storage for manipulation by the agent | Azure Blob Storage |
+| App Inventory Processor | GPT-4.1-based application consolidation, noise detection, and CSV dedup report | Copilot Studio GPT-4.1 + Power Automate (data read only) |
+| SQL Server Processor | GPT-4.1-based SQL Server consolidation and version grouping | Copilot Studio GPT-4.1 + Power Automate (data read only) |
+| Web App Processor | GPT-4.1-based web application consolidation | Copilot Studio GPT-4.1 + Power Automate (data read only) |
+| Report Generator | GPT-4.1 formats consolidated data; PA writes Excel file to Azure Blob Storage | Copilot Studio GPT-4.1 + Power Automate (write only) |
+| Orchestration | Agent topics coordinate workflow via GPT-4.1, conditional on sheet compliance | Copilot Studio Topics |
 
 ---
 
@@ -1616,10 +1623,10 @@ This lightweight flow reads the sheet names from the uploaded Excel file and ret
 
 ##### Step 5.5.3: Add Action to List Sheet Names
 
-> **Important prerequisite:** The Excel Online (Business) connector's **Run script** action requires the file to be in a SharePoint or OneDrive location, which is not used in this solution. Since uploaded files are stored in Azure Blob Storage, use one of the following approaches to list sheet names.
+> **Important prerequisite:** The Excel Online (Business) connector's **Run script** action requires the file to be in a SharePoint or OneDrive location, which is not used in this solution. Since uploaded files are stored in Azure Blob Storage, we use the **GPT-4.1 model** to analyze the file content and extract sheet names directly — no Azure Functions required.
 
-> **Option A — Azure Function (Recommended):**
-> Create a lightweight Azure Function that reads an Excel file from Azure Blob Storage and returns the sheet names. This is the most reliable approach.
+> **GPT-4.1 Model Approach (Recommended):**
+> The Power Automate flow saves the uploaded file to Azure Blob Storage, then passes the file content (or a structured representation) back to the Copilot agent. The GPT-4.1 model analyzes the content and identifies which sheets are present. This eliminates the need for Azure Functions or custom code.
 
 **Step A1: Save file to Azure Blob Storage**
 
@@ -1632,53 +1639,37 @@ This lightweight flow reads the sheet names from the uploaded Excel file and ret
    - **Blob content**: Expression: `triggerBody()?['uploadedFiles']?['contentBytes']`
 4. Rename to: `Save Temp File For Validation`
 
-**Step A2: Create an Azure Function to list sheet names**
+**Step A2: Extract file metadata for the GPT-4.1 model**
 
-Create an Azure Function (HTTP-triggered) that accepts a blob path, reads the Excel file from Azure Blob Storage, and returns the sheet names as a JSON array. Example implementation:
+Rather than calling an Azure Function, the flow extracts the file name and content type, then returns this information to the Copilot agent. The GPT-4.1 model uses the file name extension and content structure to determine which sheets are present.
 
-```csharp
-// Azure Function to list sheet names from an Excel file in Blob Storage
-[FunctionName("ListSheetNames")]
-public static async Task<IActionResult> Run(
-    [HttpTrigger] HttpRequest req)
-{
-    string blobPath = req.Query["blobPath"];
-    // Read blob content, parse Excel, return sheet names as JSON array
-    // Use a library like ClosedXML or EPPlus to read sheet names
-}
-```
+1. Click **+** → **Add an action** → Select **Compose** (Built-in > Data Operations)
+2. In the **Inputs** field, enter the following expression:
+   ```
+   triggerBody()?['uploadedFiles']?['name']
+   ```
+3. Rename to: `Extract File Name`
 
-**Step A3: Add the HTTP action to call the Azure Function**
+> **How this works:** The GPT-4.1 model receives the file content as part of the agent interaction. When the user uploads a file, Copilot Studio makes the file content available to the model. The model can analyze CSV/Excel headers and structure to identify which sheets (ApplicationInventory, SQL Server, WebApplications) are present in the data. The agent instructions (Step 2) include specific prompts that tell the GPT-4.1 model how to perform this validation.
 
-1. Back in the Power Automate flow designer, click **+** → **Add an action**
-2. Search for `HTTP` → Select **HTTP** (built-in)
-3. Configure:
-   - **Method**: `GET`
-   - **URI**: Your Azure Function URL — **PLACEHOLDER – replace with your function URL**
-   - **Queries**: `blobPath` = output from "Save Temp File For Validation"
-4. Rename to: `List Sheet Names`
-
-> **Option B — Parse Excel directly in Power Automate:**
-> If Azure Functions are not available, use a **Compose** action with the file content and extract sheet names using available connectors or a custom connector. The exact approach depends on your connector availability and licensing.
+> **Alternative — Azure Function fallback:**
+> If the GPT-4.1 model cannot reliably parse binary Excel file metadata in your environment, you can fall back to an Azure Function that reads sheet names from blob storage. However, for CSV files and well-structured Excel exports, the model-based approach is simpler and eliminates external dependencies.
 
 ##### Step 5.5.4: Configure Flow Outputs
 
 1. Click on the **Respond to the agent** action
-2. Add outputs (replace the action name in expressions with **your actual action name** from Step A3 — e.g., if you renamed the action to `List Sheet Names`, the internal name becomes `List_Sheet_Names`):
-   - **Name**: `sheetNames` | **Type**: Text | **Value**: Expression:
+2. Add outputs that pass the file name and blob path back to the agent, so the GPT-4.1 model can use this information for validation:
+   - **Name**: `fileName` | **Type**: Text | **Value**: Expression:
      ```
-     coalesce(string(outputs('List_Sheet_Names')?['body']?['result']), '[]')
+     coalesce(outputs('Extract_File_Name'), '')
      ```
-   - **Name**: `sheetCount` | **Type**: Text | **Value**: Expression:
+   - **Name**: `blobPath` | **Type**: Text | **Value**: Expression:
      ```
-     string(length(outputs('List_Sheet_Names')?['body']?['result']))
+     coalesce(body('Save_Temp_File_For_Validation')?['Path'], '')
      ```
-   - **Name**: `status` | **Type**: Text | **Value**: Expression:
-     ```
-     if(length(outputs('List_Sheet_Names')?['body']?['result']), 'SheetsFound', 'NoRequiredSheets')
-     ```
+   - **Name**: `status` | **Type**: Text | **Value**: `FileReady`
 
-> **Note:** Replace `'List_Sheet_Names'` in the expressions above with the internal name of your Run script action (the display name with spaces replaced by underscores). Wrap every dynamic output in `coalesce()` to prevent null errors. If the script returns no sheets, the status defaults to `"NoRequiredSheets"`.
+> **Note:** The GPT-4.1 model performs the actual sheet validation using its instructions (see Step 2 — SHEET VERIFICATION section). The flow's role is simply to store the file and return metadata. The model then applies its reasoning to determine which required sheets (ApplicationInventory, SQL Server, WebApplications) are present based on the file content it receives through the Copilot Studio file upload mechanism.
 
 ##### Step 5.5.5: Save and Publish
 
@@ -1692,7 +1683,7 @@ public static async Task<IActionResult> Run(
 3. Select **Validate Excel Sheets - Azure Migrate**
 4. Review:
    - Input: `uploadedFiles` (File)
-   - Outputs: `sheetNames` (Text), `sheetCount` (Text), `status` (Text)
+   - Outputs: `fileName` (Text), `blobPath` (Text), `status` (Text)
 5. Click **Add** to confirm
 
 ##### Step 5.5.7: Verify Flow Diagram
@@ -1705,16 +1696,24 @@ public static async Task<IActionResult> Run(
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Run script (Excel Online Business)                                      │
-│ Office Script: return sheet names as string array                       │
+│ Save Temp File For Validation (Azure Blob Storage)                      │
+│ Saves file to uploads/temp/ container for agent access                  │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Extract File Name (Compose)                                              │
+│ Extracts the uploaded file's name for the GPT-4.1 model                 │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ Respond to the agent                                                     │
-│ • sheetNames (JSON array of sheet name strings)                         │
-│ • sheetCount (number of sheets as text)                                 │
-│ • status ("SheetsFound" or "NoRequiredSheets")                          │
+│ • fileName (name of the uploaded file)                                   │
+│ • blobPath (path in Azure Blob Storage)                                  │
+│ • status ("FileReady")                                                   │
+│                                                                          │
+│ → GPT-4.1 model then performs sheet validation using agent instructions │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
