@@ -1,6 +1,6 @@
 # Azure Migrate CSV Processing Agents - Copilot Studio Guide
 
-A comprehensive guide for building Copilot Studio agents that use LLM-based analysis to process Azure Migrate export CSV files, consolidate application, SQL Server, and web application inventories, and generate downloadable reports.
+A comprehensive guide for building Copilot Studio agents that use GPT-4.1-based analysis to process Azure Migrate export CSV files, consolidate application, SQL Server, and web application inventories, and generate downloadable reports.
 
 ## Table of Contents
 
@@ -28,10 +28,10 @@ A comprehensive guide for building Copilot Studio agents that use LLM-based anal
 This guide provides step-by-step instructions for building a suite of Microsoft Copilot Studio agents that:
 
 1. **Accept file uploads** - Allow users to upload one or more Azure Migrate export CSV files
-2. **Verify sheet compliance** - Use the LLM to verify that the uploaded file contains the required sheets (ApplicationInventory, SQL Server, WebApplications) and report which sheets are present or missing
-3. **Process Application Inventory** - Use the Copilot agent's LLM reasoning to analyze the `ApplicationInventory` sheet, identify noise (patches, updates, OS components, drivers), consolidate applications by exact name match, preserve version variants as separate entries, and generate a CSV dedup report
-4. **Process SQL Server Inventory** - Use the Copilot agent's LLM reasoning to analyze SQL Server sheets, consolidate instances, group by version, remove updates and dependent clients, and generate a unique list of SQL Server versions and entries
-5. **Process Web App Inventory** - Use the Copilot agent's LLM reasoning to analyze web application/web server sheets and produce a unique list of web apps
+2. **Verify sheet compliance** - Use the GPT-4.1 model to verify that the uploaded file contains the required sheets (ApplicationInventory, SQL Server, WebApplications) and report which sheets are present or missing
+3. **Process Application Inventory** - Use the GPT-4.1 model's reasoning to analyze the `ApplicationInventory` sheet, identify noise (patches, updates, OS components, drivers), consolidate applications by exact name match, preserve version variants as separate entries, and generate a CSV dedup report
+4. **Process SQL Server Inventory** - Use the GPT-4.1 model's reasoning to analyze SQL Server sheets, consolidate instances, group by version, remove updates and dependent clients, and generate a unique list of SQL Server versions and entries
+5. **Process Web App Inventory** - Use the GPT-4.1 model's reasoning to analyze web application/web server sheets and produce a unique list of web apps
 6. **Generate Reports** - Create a consolidated spreadsheet with sheets for unique applications, SQL Server instances, and web apps
 7. **Enable Download** - Provide users with a downloadable link to the generated spreadsheet
 
@@ -309,13 +309,13 @@ Azure Blob Storage provides temporary file storage for uploaded files and persis
 ## Agent 1: File Upload Handler
 
 ### Purpose
-This agent is the **starting point of the Azure Migrate processing flow**. It provides users with instructions to upload Azure Migrate extracted CSV files, accepts the file uploads, **uses the LLM to verify sheet compliance** (checking that required sheets exist and reporting which are missing), stores files in Azure Blob Storage, and coordinates the LLM-based processing sequence by conditionally redirecting to the analysis topics (Agents 2, 3, 4) only for verified sheets.
+This agent is the **starting point of the Azure Migrate processing flow**. It provides users with instructions to upload Azure Migrate extracted CSV files, accepts the file uploads, **uses the GPT-4.1 model to verify sheet compliance** (checking that required sheets exist and reporting which are missing), stores files in Azure Blob Storage, and coordinates the GPT-4.1-based processing sequence by conditionally redirecting to the analysis topics (Agents 2, 3, 4) only for verified sheets.
 
 > **Important**: This agent is:
 > - **NOT conversational** - It follows a structured flow without general chat capabilities
 > - **Triggered on file(s) upload** - The main flow activates when users upload files
-> - **Sheet compliance verifier** - The LLM checks the uploaded file for required sheets (ApplicationInventory, SQL Server, WebApplications) and reports ✅/❌ status for each before processing
-> - **The coordinator of the processing flow** - After verification, it triggers each LLM analysis topic **only for sheets that are present** (skipping missing sheets)
+> - **Sheet compliance verifier** - The GPT-4.1 model checks the uploaded file for required sheets (ApplicationInventory, SQL Server, WebApplications) and reports ✅/❌ status for each before processing
+> - **The coordinator of the processing flow** - After verification, it triggers each GPT-4.1 model analysis topic **only for sheets that are present** (skipping missing sheets)
 > - Designed to work with **in-memory data passing** where possible, using persistent storage (Azure Blob Storage) **only for the final report**
 
 ---
@@ -439,7 +439,7 @@ You are the Azure Migrate File Handler agent. Your role is to:
 2. ACCEPT file uploads (CSV or Excel format) containing Azure Migrate export data
 3. VERIFY that uploaded Excel files contain the required sheets before processing
 4. REPORT sheet compliance status to the user, identifying missing or non-compliant sheets
-5. COORDINATE the LLM-based processing workflow after successful validation
+5. COORDINATE the GPT-4.1-based processing workflow after successful validation
 
 IMPORTANT BEHAVIOR:
 - You are NOT a general-purpose conversational agent
@@ -457,7 +457,7 @@ EXPECTED FILE FORMATS:
   (The file may also contain a Database sheet — this is accepted but not processed by
   the current agents)
 
-SHEET VERIFICATION (LLM-based compliance check):
+SHEET VERIFICATION (GPT-4.1-based compliance check):
 After receiving the uploaded file, you MUST verify sheet compliance before processing:
 1. Call the "Validate Excel Sheets" tool to retrieve the list of sheet names in the file
 2. Compare the returned sheet names against the REQUIRED sheets:
@@ -478,22 +478,22 @@ After receiving the uploaded file, you MUST verify sheet compliance before proce
    - If NO required sheets are found → halt processing and ask the user to upload
      a valid Azure Migrate export file
 
-PROCESSING ARCHITECTURE (LLM-first, in-memory approach):
+PROCESSING ARCHITECTURE (GPT-4.1-first, in-memory approach):
 - After sheet verification passes, coordinate the processing sequence by triggering
   each analysis topic in order
 - Data is kept IN MEMORY via global variables wherever possible — the uploaded file
   content is passed directly to data extraction tools without requiring intermediate
   storage. Persistent storage (Azure Blob Storage) is used ONLY for the final
   generated report that the user needs to download
-- Agents 2, 3, and 4 use your LLM reasoning to analyze raw data from the file.
+- Agents 2, 3, and 4 use your GPT-4.1 model reasoning to analyze raw data from the file.
   Power Automate is used ONLY for reading raw data from files and writing the final
-  report — all consolidation, noise detection, and CSV generation is performed by LLM
+  report — all consolidation, noise detection, and CSV generation is performed by GPT-4.1 model
   analysis within Copilot Studio topics
 - The processing sequence is:
-  1. "Process Application Inventory" topic — LLM analyzes, consolidates, and generates
+  1. "Process Application Inventory" topic — GPT-4.1 model analyzes, consolidates, and generates
      a CSV summary of deduplicated applications
-  2. "Process SQL Server Inventory" topic — LLM consolidates SQL instances
-  3. "Process Web App Inventory" topic — LLM consolidates web apps
+  2. "Process SQL Server Inventory" topic — GPT-4.1 model consolidates SQL instances
+  3. "Process Web App Inventory" topic — GPT-4.1 model consolidates web apps
   4. Report generation — consolidated data written to a downloadable spreadsheet
 
 WORKFLOW:
@@ -640,7 +640,7 @@ We'll create a dedicated topic to initialize all global variables needed for the
 
 ##### Step 3.1.10: Create the consolidatedApplications Variable
 
-> **Note**: This variable is set by the "Process Application Inventory" topic (Agent 2) to store the LLM-analyzed unique application list as a JSON string.
+> **Note**: This variable is set by the "Process Application Inventory" topic (Agent 2) to store the GPT-4.1-analyzed unique application list as a JSON string.
 
 1. Click the **+** button below the previous node
 2. Select **Variable management** → **Set a variable value**
@@ -655,7 +655,7 @@ We'll create a dedicated topic to initialize all global variables needed for the
 
 ##### Step 3.1.11: Create the consolidatedSQLInstances Variable
 
-> **Note**: This variable is set by the "Process SQL Server Inventory" topic (Agent 3) to store the LLM-analyzed unique SQL Server list as a JSON string.
+> **Note**: This variable is set by the "Process SQL Server Inventory" topic (Agent 3) to store the GPT-4.1-analyzed unique SQL Server list as a JSON string.
 
 1. Click the **+** button below the previous node
 2. Select **Variable management** → **Set a variable value**
@@ -670,7 +670,7 @@ We'll create a dedicated topic to initialize all global variables needed for the
 
 ##### Step 3.1.12: Create the consolidatedWebApps Variable
 
-> **Note**: This variable is set by the "Process Web App Inventory" topic (Agent 4) to store the LLM-analyzed unique web application list as a JSON string.
+> **Note**: This variable is set by the "Process Web App Inventory" topic (Agent 4) to store the GPT-4.1-analyzed unique web application list as a JSON string.
 
 1. Click the **+** button below the previous node
 2. Select **Variable management** → **Set a variable value**
@@ -713,10 +713,10 @@ After saving the topic, verify your global variables are created:
 │ Global.processingStatus            │ String  │ Current status of processing workflow               │
 │ Global.errorMessage                │ String  │ Error message if processing fails                  │
 │ Global.uploadedFilePath            │ String  │ Path to the uploaded file in temporary storage      │
-│ Global.consolidatedApplications    │ String  │ LLM-analyzed unique application list (JSON)         │
-│ Global.consolidatedSQLInstances    │ String  │ LLM-analyzed unique SQL Server list (JSON)          │
-│ Global.consolidatedWebApps         │ String  │ LLM-analyzed unique web app list (JSON)             │
-│ Global.applicationDedupCSV         │ String  │ LLM-generated CSV dedup report for applications    │
+│ Global.consolidatedApplications    │ String  │ GPT-4.1-analyzed unique application list (JSON)         │
+│ Global.consolidatedSQLInstances    │ String  │ GPT-4.1-analyzed unique SQL Server list (JSON)          │
+│ Global.consolidatedWebApps         │ String  │ GPT-4.1-analyzed unique web app list (JSON)             │
+│ Global.applicationDedupCSV         │ String  │ GPT-4.1-generated CSV dedup report for applications    │
 │ Global.detectedSheets              │ String  │ Sheet names found in uploaded file (JSON array)     │
 └────────────────────────────────────┴─────────┴────────────────────────────────────────────────────┘
 ```
@@ -909,9 +909,9 @@ I'll now verify the file structure before starting the AI-powered analysis.
 
 5. Click outside the text area to save the message
 
-**Part A.1: Add Sheet Verification Tool Call (LLM-Based Compliance Check)**
+**Part A.1: Add Sheet Verification Tool Call (GPT-4.1-Based Compliance Check)**
 
-> **Key Enhancement:** Before processing begins, the LLM verifies that the uploaded Excel file contains the required sheets. This prevents runtime errors from missing sheets and gives users clear, actionable feedback about their file's compliance.
+> **Key Enhancement:** Before processing begins, the GPT-4.1 model verifies that the uploaded Excel file contains the required sheets. This prevents runtime errors from missing sheets and gives users clear, actionable feedback about their file's compliance.
 
 6. Click the **+** (Add node) button below the confirmation message
 7. From the dropdown menu, select **Add a tool**
@@ -926,7 +926,7 @@ I'll now verify the file structure before starting the AI-powered analysis.
 
 11. Click the **+** (Add node) button below the tool call
 12. Select **Send a message**
-13. Enter the following LLM analysis prompt:
+13. Enter the following GPT-4.1 model analysis prompt:
 
 ```
 I have detected the following sheets in the uploaded file:
@@ -944,9 +944,9 @@ Report a compliance summary to the user using this format:
 Then state which processing steps will proceed and which will be skipped.
 ```
 
-> **How it works:** The "Validate Excel Sheets" tool (a lightweight Power Automate flow) reads sheet names from the file and returns them to the agent. The LLM then applies its SHEET VERIFICATION instructions to compare the sheet list against expected names and generates a compliance report. This keeps the intelligence in the LLM while Power Automate handles only the mechanical task of reading sheet metadata.
+> **How it works:** The "Validate Excel Sheets" tool (a lightweight Power Automate flow) reads sheet names from the file and returns them to the agent. The GPT-4.1 model then applies its SHEET VERIFICATION instructions to compare the sheet list against expected names and generates a compliance report. This keeps the intelligence in the GPT-4.1 model while Power Automate handles only the mechanical task of reading sheet metadata.
 
-14. Click the **+** (Add node) button below the LLM analysis message
+14. Click the **+** (Add node) button below the GPT-4.1 model analysis message
 15. Select **Add a condition**
 16. Configure the condition:
     - Variable: `Topic.validationStatus`
@@ -983,9 +983,9 @@ Then state which processing steps will proceed and which will be skipped.
 
 > **Tip:** If you prefer to skip adding the flow tool for now, you can come back after completing Step 5. Locate the TRUE branch in this topic, click **+**, select **Add a tool**, and choose the flow to add and configure it at that point.
 
-**Part C: Add Topic Redirects for LLM-Based Processing Sequence (Conditional on Sheet Compliance)**
+**Part C: Add Topic Redirects for GPT-4.1-Based Processing Sequence (Conditional on Sheet Compliance)**
 
-After file upload and sheet verification, the agent coordinates processing by redirecting to each analysis topic **only for sheets that passed compliance**. Each topic (Agent 2, 3, 4) calls its own data extraction tool, then the LLM analyzes the raw data and stores the results in a global variable.
+After file upload and sheet verification, the agent coordinates processing by redirecting to each analysis topic **only for sheets that passed compliance**. Each topic (Agent 2, 3, 4) calls its own data extraction tool, then the GPT-4.1 model analyzes the raw data and stores the results in a global variable.
 
 > **Note:** The processing topics referenced below are created in Agents 2, 3, and 4 respectively. You will add these redirect nodes after completing those agent sections. For now, you can add placeholder "Send a message" nodes or skip this part and return later.
 
@@ -995,7 +995,7 @@ After file upload and sheet verification, the agent coordinates processing by re
     - Click on the **operator dropdown** → Select **contains**
     - In the value field, type: `ApplicationInventory`
     - **TRUE branch**: Click **+** → Select **Redirect to another topic** → Select **Process Application Inventory** (created in Agent 2, Step 4)
-      - This topic calls the "Read Application Inventory Data" tool, then the LLM analyzes the data, stores results in `Global.consolidatedApplications`, and generates a CSV dedup summary
+      - This topic calls the "Read Application Inventory Data" tool, then the GPT-4.1 model analyzes the data, stores results in `Global.consolidatedApplications`, and generates a CSV dedup summary
     - **FALSE branch**: Click **+** → Select **Send a message** → Type: `⏭️ Skipping Application Inventory processing — sheet not found in file.`
 
 25. Click the **+** (Add node) button below the previous step
@@ -1004,7 +1004,7 @@ After file upload and sheet verification, the agent coordinates processing by re
     - Click on the **operator dropdown** → Select **contains**
     - In the value field, type: `SQL Server`
     - **TRUE branch**: Click **+** → Select **Redirect to another topic** → Select **Process SQL Server Inventory** (created in Agent 3, Step 4)
-      - This topic calls the "Read SQL Server Inventory Data" tool, then the LLM analyzes the data and stores results in `Global.consolidatedSQLInstances`
+      - This topic calls the "Read SQL Server Inventory Data" tool, then the GPT-4.1 model analyzes the data and stores results in `Global.consolidatedSQLInstances`
     - **FALSE branch**: Click **+** → Select **Send a message** → Type: `⏭️ Skipping SQL Server Inventory processing — sheet not found in file.`
 
 27. Click the **+** (Add node) button below the previous step
@@ -1013,7 +1013,7 @@ After file upload and sheet verification, the agent coordinates processing by re
     - Click on the **operator dropdown** → Select **contains**
     - In the value field, type: `WebApplications`
     - **TRUE branch**: Click **+** → Select **Redirect to another topic** → Select **Process Web App Inventory** (created in Agent 4, Step 4)
-      - This topic calls the "Read Web App Inventory Data" tool, then the LLM analyzes the data and stores results in `Global.consolidatedWebApps`
+      - This topic calls the "Read Web App Inventory Data" tool, then the GPT-4.1 model analyzes the data and stores results in `Global.consolidatedWebApps`
     - **FALSE branch**: Click **+** → Select **Send a message** → Type: `⏭️ Skipping Web App Inventory processing — sheet not found in file.`
 
 29. Click the **+** (Add node) button below the previous step
@@ -1068,7 +1068,7 @@ Would you like to try uploading your files again?
 
 #### Step 4.2: Create Topic 2 - Check Processing Status
 
-This topic allows users to check on the status of their file processing. In the LLM-first architecture, processing happens conversationally within the agent's topics (Agents 2, 3, 4 run sequentially in the Welcome topic's TRUE branch). This status topic is useful when:
+This topic allows users to check on the status of their file processing. In the GPT-4.1-first architecture, processing happens conversationally within the agent's topics (Agents 2, 3, 4 run sequentially in the Welcome topic's TRUE branch). This status topic is useful when:
 - The user navigates away and returns to check progress
 - The agent is configured with an optional Power Automate Orchestrator for background processing
 - The report generation (Agent 5) is running asynchronously
@@ -1601,9 +1601,9 @@ The flow now appears in the agent's list of tools.
 
 #### Step 5.5: Create the Validate Excel Sheets Tool (Power Automate Flow)
 
-This lightweight flow reads the sheet names from the uploaded Excel file and returns them to the agent. The LLM then performs the compliance check — Power Automate handles only the mechanical task of reading sheet metadata.
+This lightweight flow reads the sheet names from the uploaded Excel file and returns them to the agent. The GPT-4.1 model then performs the compliance check — Power Automate handles only the mechanical task of reading sheet metadata.
 
-> **Design principle:** This tool follows the LLM-first approach — it returns raw metadata (sheet names), and the LLM applies the compliance logic from its instructions. This avoids encoding business rules in Power Automate and keeps the intelligence in the agent.
+> **Design principle:** This tool follows the GPT-4.1-first approach — it returns raw metadata (sheet names), and the GPT-4.1 model applies the compliance logic from its instructions. This avoids encoding business rules in Power Automate and keeps the intelligence in the agent.
 
 ##### Step 5.5.1: Create the Flow
 
@@ -1833,7 +1833,7 @@ This action builds the full path to the uploaded file in blob storage, which is 
 4. Click **OK**
 5. Rename the action to: `Build File Path`
 
-> **Why this step?** In the LLM-first architecture, the Copilot agent's topics (Agents 2, 3, 4) coordinate all processing — not a Power Automate Orchestrator. The file path is returned to the agent so it can pass it to each data extraction tool. The HTTP Orchestrator call is no longer needed here.
+> **Why this step?** In the GPT-4.1-first architecture, the Copilot agent's topics (Agents 2, 3, 4) coordinate all processing — not a Power Automate Orchestrator. The file path is returned to the agent so it can pass it to each data extraction tool. The HTTP Orchestrator call is no longer needed here.
 
 ##### Step 7.4: Configure the Respond to the agent Outputs
 
@@ -1896,7 +1896,7 @@ In the **in-memory approach**, the uploaded file content is passed directly to d
 
 ```
 ┌──────────────┐    file content     ┌────────────────────┐    raw JSON     ┌───────────────┐
-│ User uploads  │ ──────────────────▶ │ Validate Sheets    │ ──────────────▶ │ LLM verifies  │
+│ User uploads  │ ──────────────────▶ │ Validate Sheets    │ ──────────────▶ │ GPT-4.1 verifies  │
 │ file in chat  │    (in memory)      │ (PA tool — reads   │   (returned    │ sheet names   │
 │               │                     │  sheet names only) │   to agent)    │               │
 └──────────────┘                     └────────────────────┘                └───────────────┘
@@ -1911,10 +1911,10 @@ In the **in-memory approach**, the uploaded file content is passed directly to d
 │  • "Read Web App Inventory Data" — receives file content, returns raw rows as JSON       │
 │                                                                                          │
 │  Each tool receives the file content directly from the topic variable — no storage       │
-│  read is needed. The raw JSON is returned to the agent for LLM analysis.                 │
+│  read is needed. The raw JSON is returned to the agent for GPT-4.1 model analysis.                 │
 └──────────────────────────────────────────────────────────────────────────────────────────┘
                                           │
-                          LLM analyzes data in Copilot Studio topics
+                          GPT-4.1 model analyzes data in Copilot Studio topics
                           Results stored in Global variables (JSON strings)
                                           │
                                           ▼
@@ -1935,7 +1935,7 @@ In the **in-memory approach**, the uploaded file content is passed directly to d
 | **Power Automate usage** | Minimal — PA tools read data directly from file content passed as input. No storage read/write actions needed except for the final report. | PA tools read from storage (additional actions for blob read) |
 | **Latency** | Faster — no round-trip to storage | Slower — write to storage, then read back |
 | **Reliability** | Data is tied to conversation session. If the session drops, data is lost. | Data persists across sessions |
-| **LLM-first alignment** | ✅ Fully aligned — minimizes PA, keeps data in agent context | Requires more PA actions for storage I/O |
+| **GPT-4.1-first alignment** | ✅ Fully aligned — minimizes PA, keeps data in agent context | Requires more PA actions for storage I/O |
 
 #### Recommendation
 
@@ -1952,21 +1952,21 @@ To implement the in-memory approach, modify the data extraction tools (Agents 2,
 
 ### Purpose
 
-This agent uses the Copilot Studio LLM to intelligently analyze and consolidate application inventory data from Azure Migrate exports. Instead of relying on rigid pattern-matching rules in Power Automate loops, the agent's LLM applies reasoning to identify noise, consolidate applications, and produce a comprehensive unique application list. Power Automate is used **only** for reading raw data from the uploaded file.
+This agent uses the GPT-4.1 model to intelligently analyze and consolidate application inventory data from Azure Migrate exports. Instead of relying on rigid pattern-matching rules in Power Automate loops, the GPT-4.1 model applies reasoning to identify noise, consolidate applications, and produce a comprehensive unique application list. Power Automate is used **only** for reading raw data from the uploaded file.
 
-> **Key Change from Previous Approach:** The analysis and consolidation logic (noise detection, deduplication, dependency identification) is now performed by the Copilot agent's LLM reasoning — not by Power Automate loops and conditions. This makes the agent more intelligent, easier to maintain, and capable of handling edge cases that rigid pattern matching would miss.
+> **Key Change from Previous Approach:** The analysis and consolidation logic (noise detection, deduplication, dependency identification) is now performed by the GPT-4.1 model's reasoning — not by Power Automate loops and conditions. This makes the agent more intelligent, easier to maintain, and capable of handling edge cases that rigid pattern matching would miss.
 
 ---
 
-### How the LLM-Based Approach Works
+### How the GPT-4.1-Based Approach Works
 
 1. A lightweight Power Automate **tool** reads raw application data from the uploaded file and returns it as structured JSON
-2. The Copilot agent's LLM receives the raw data and applies intelligent analysis:
+2. The GPT-4.1 model receives the raw data and applies intelligent analysis:
    - **Noise identification**: Uses reasoning to detect patches, software updates, OS-related updates, drivers, redistributables, and other non-business applications
    - **Dependency detection**: Identifies application-dependent drivers and updates (e.g., "SQL Server ODBC Driver", "Oracle Client") and classifies them as noise
    - **Exact name consolidation**: Groups applications by exact name match (case-insensitive, whitespace-trimmed)
    - **Version preservation**: Keeps multiple versions of the same application as **separate entries**
-3. The LLM outputs a clean, deduplicated JSON array of unique business applications
+3. The GPT-4.1 model outputs a clean, deduplicated JSON array of unique business applications
 4. Results are stored in a global variable for the Report Generator
 
 ```
@@ -1976,7 +1976,7 @@ This agent uses the Copilot Studio LLM to intelligently analyze and consolidate 
 │  1. Call Tool: "Read Application Inventory Data" (Power Automate)           │
 │     └─→ Returns raw application rows as JSON                               │
 │                                                                             │
-│  2. LLM Analysis (performed by the Copilot agent's model):                 │
+│  2. GPT-4.1 Model Analysis (performed by the Copilot agent's model):                 │
 │     ├─→ Identify and remove noise (patches, updates, drivers, OS items)    │
 │     ├─→ Identify application-dependent drivers/updates as noise            │
 │     ├─→ Consolidate by exact application name match                        │
@@ -1992,7 +1992,7 @@ This agent uses the Copilot Studio LLM to intelligently analyze and consolidate 
 
 ### Step 1: Create the Data Extraction Tool (Power Automate Flow)
 
-This minimal flow reads raw application inventory data from the uploaded file and returns it to the Copilot agent. No analysis or processing logic is needed in this flow — the LLM handles all analysis.
+This minimal flow reads raw application inventory data from the uploaded file and returns it to the Copilot agent. No analysis or processing logic is needed in this flow — the GPT-4.1 model handles all analysis.
 
 #### Step 1.1: Access Power Automate
 
@@ -2115,7 +2115,7 @@ Your completed data extraction flow should look like this:
 
 ### Step 3: Configure Agent Instructions for Application Analysis
 
-The agent's Instructions define the LLM's analysis behavior. This is where you provide the intelligence that replaces the old Power Automate pattern-matching logic.
+The agent's Instructions define the GPT-4.1 model's analysis behavior. This is where you provide the intelligence that replaces the old Power Automate pattern-matching logic.
 
 #### Step 3.1: Open Agent Settings
 
@@ -2185,7 +2185,7 @@ The CSV should include:
 - Machines column: semicolon-separated list of machine names
 - Values containing commas enclosed in double quotes
 - Sorted alphabetically by Application, then by Version
-This CSV is generated entirely by the LLM — no Power Automate flow is needed.
+This CSV is generated entirely by the GPT-4.1 model — no Power Automate flow is needed.
 
 ### External References Policy
 Do NOT include links, URLs, or references to external resources (such as documentation
@@ -2193,7 +2193,7 @@ pages, Microsoft Learn articles, blog posts, or third-party websites) in your re
 unless the user explicitly asks for them.
 ```
 
-> **Note**: These instructions guide the LLM's reasoning. The LLM will use these rules to intelligently classify applications rather than relying on rigid substring matching. This means the LLM can also catch edge cases like misspellings, alternate naming patterns, and context-dependent classifications that rigid pattern matching would miss.
+> **Note**: These instructions guide the GPT-4.1 model's reasoning. The GPT-4.1 model will use these rules to intelligently classify applications rather than relying on rigid substring matching. This means the GPT-4.1 model can also catch edge cases like misspellings, alternate naming patterns, and context-dependent classifications that rigid pattern matching would miss.
 
 ---
 
@@ -2233,12 +2233,12 @@ unless the user explicitly asks for them.
    - `rowCount` → save to `Topic.appRowCount`
    - `status` → save to `Topic.readStatus`
 
-#### Step 4.5: Add Message Node - LLM Analysis Prompt
+#### Step 4.5: Add Message Node - GPT-4.1 Model Analysis Prompt
 
-This is the key step where the LLM performs the analysis. Add a **Send a message** node with the following content:
+This is the key step where the GPT-4.1 model performs the analysis. Add a **Send a message** node with the following content:
 
 1. Click **+** → **Send a message**
-2. Enter the following message (the LLM will process this based on the agent instructions):
+2. Enter the following message (the GPT-4.1 model will process this based on the agent instructions):
 
 ```
 I have retrieved {Topic.appRowCount} application inventory rows. Now analyzing the data
@@ -2253,27 +2253,27 @@ instructions and return:
 2. A summary of what was filtered and why
 ```
 
-> **Note**: The Copilot agent's LLM will apply the analysis rules from the agent Instructions (Step 3) to process this data. The LLM uses reasoning to identify noise, detect dependencies, and consolidate applications — this is more intelligent than pattern-matching.
+> **Note**: The GPT-4.1 model will apply the analysis rules from the agent Instructions (Step 3) to process this data. The GPT-4.1 model uses reasoning to identify noise, detect dependencies, and consolidate applications — this is more intelligent than pattern-matching.
 
 #### Step 4.6: Add Variable Node - Store Results
 
 1. Click **+** → **Set a variable value**
 2. Set variable: **Global.consolidatedApplications**
    - Change scope from "Topic" to "Global" in the variable properties panel
-3. Value: Set to the LLM's analysis output
+3. Value: Set to the GPT-4.1 model's analysis output
 
-> **Note**: The LLM's response will include both narrative text and the JSON array. In Copilot Studio, you can instruct the LLM (via the analysis prompt in Step 4.5) to output the JSON array in a clearly delimited format. The variable should capture the structured JSON output. If the LLM's response includes both text and JSON, you may need to use a **Parse value** node or an additional **Compose** action in a follow-up Power Automate tool to extract the JSON portion.
+> **Note**: The GPT-4.1 model's response will include both narrative text and the JSON array. In Copilot Studio, you can instruct the GPT-4.1 model (via the analysis prompt in Step 4.5) to output the JSON array in a clearly delimited format. The variable should capture the structured JSON output. If the GPT-4.1 model's response includes both text and JSON, you may need to use a **Parse value** node or an additional **Compose** action in a follow-up Power Automate tool to extract the JSON portion.
 
-> **Tip**: For reliable extraction, add a line to your LLM analysis prompt such as: *"Return ONLY the JSON array as your final message, with no additional text."* This makes it easier to store the entire response as the variable value.
+> **Tip**: For reliable extraction, add a line to your GPT-4.1 model analysis prompt such as: *"Return ONLY the JSON array as your final message, with no additional text."* This makes it easier to store the entire response as the variable value.
 
-#### Step 4.6.1: Generate CSV Dedup Report (LLM-Generated)
+#### Step 4.6.1: Generate CSV Dedup Report (GPT-4.1-Generated)
 
-After the LLM completes the consolidation analysis, the agent generates a CSV-formatted summary of the deduplicated applications. This is done entirely by the LLM — no Power Automate flow is needed.
+After the GPT-4.1 model completes the consolidation analysis, the agent generates a CSV-formatted summary of the deduplicated applications. This is done entirely by the GPT-4.1 model — no Power Automate flow is needed.
 
-> **Design principle:** CSV generation is a text-formatting task that the LLM handles naturally. By generating the CSV in the agent topic, we avoid an unnecessary Power Automate flow and keep the processing within the LLM-first architecture.
+> **Design principle:** CSV generation is a text-formatting task that the GPT-4.1 model handles naturally. By generating the CSV in the agent topic, we avoid an unnecessary Power Automate flow and keep the processing within the GPT-4.1-first architecture.
 
 1. Click **+** → **Send a message**
-2. Enter the following LLM prompt (insert the `Global.consolidatedApplications` variable using the **{x}** variable picker — click **{x}**, select **Global.consolidatedApplications**, and it will be inserted as a dynamic variable reference):
+2. Enter the following GPT-4.1 model prompt (insert the `Global.consolidatedApplications` variable using the **{x}** variable picker — click **{x}**, select **Global.consolidatedApplications**, and it will be inserted as a dynamic variable reference):
 
 ```
 Now generate a CSV-formatted dedup report from the consolidated application data
@@ -2300,11 +2300,11 @@ and total duplicates consolidated.
 3. Click **+** → **Set a variable value**
 4. Set variable: **Global.applicationDedupCSV** (create as a new Global String variable if it does not exist — see Step 3 for creation instructions)
    - Change scope to "Global"
-5. Value: In Copilot Studio, the LLM's response is displayed to the user in the chat but is not automatically captured into a variable. To store the CSV output, use one of these approaches:
+5. Value: In Copilot Studio, the GPT-4.1 model's response is displayed to the user in the chat but is not automatically captured into a variable. To store the CSV output, use one of these approaches:
    - **Option A (Recommended):** Add a subsequent **Ask a question** node that prompts: `"The CSV report is displayed above. Would you like to proceed to the next analysis step?"` — this keeps the flow moving while the CSV is visible for the user to copy. The CSV data is already available as part of `Global.consolidatedApplications` (JSON format) for the report generator.
    - **Option B:** If you need the raw CSV stored, add a lightweight Power Automate tool that accepts the JSON from `Global.consolidatedApplications` and converts it to CSV format using a Compose action, returning the CSV string.
 
-> **Note**: The LLM generates the CSV text directly from the consolidated JSON data already in memory. No Power Automate flow or file write is required for display. The user sees the CSV summary inline in the conversation and can copy it. For the final report, Agent 5 uses the JSON data from `Global.consolidatedApplications` — the CSV is a user-facing convenience output.
+> **Note**: The GPT-4.1 model generates the CSV text directly from the consolidated JSON data already in memory. No Power Automate flow or file write is required for display. The user sees the CSV summary inline in the conversation and can copy it. For the final report, Agent 5 uses the JSON data from `Global.consolidatedApplications` — the CSV is a user-facing convenience output.
 
 #### Step 4.7: Add Confirmation Message
 
@@ -2334,7 +2334,7 @@ The consolidated application list has been stored and is ready for report genera
 3. Verify:
    - The agent calls the "Read Application Inventory Data" tool
    - The agent displays the row count
-   - The LLM analyzes the data and returns a consolidated list
+   - The GPT-4.1 model analyzes the data and returns a consolidated list
    - Noise items (updates, patches, drivers) are correctly identified and excluded
    - Different versions of the same application are preserved as separate entries
    - The summary statistics are accurate
@@ -2353,7 +2353,7 @@ Test with sample data that includes:
 
 #### Step 5.3: Validate CSV Dedup Report
 
-Verify the LLM-generated CSV report:
+Verify the GPT-4.1-generated CSV report:
 - Header row is present and matches expected format
 - Each unique application+version has exactly one row
 - MachineCount accurately reflects the number of machines
@@ -2365,7 +2365,7 @@ Verify the LLM-generated CSV report:
 
 ### Application Consolidation Rules Reference
 
-The LLM applies these consolidation rules using reasoning:
+The GPT-4.1 model applies these consolidation rules using reasoning:
 
 | Rule | Description | Example |
 |------|-------------|---------|
@@ -2383,19 +2383,19 @@ The LLM applies these consolidation rules using reasoning:
 
 ### Purpose
 
-This agent uses the Copilot Studio LLM to analyze and consolidate SQL Server inventory data from Azure Migrate exports. The LLM applies reasoning to consolidate SQL Server instances, group by version, remove updates and dependent clients, and generate a unique list of SQL Server versions and entries. Power Automate is used **only** for reading raw data from the uploaded file.
+This agent uses the GPT-4.1 model to analyze and consolidate SQL Server inventory data from Azure Migrate exports. The GPT-4.1 model applies reasoning to consolidate SQL Server instances, group by version, remove updates and dependent clients, and generate a unique list of SQL Server versions and entries. Power Automate is used **only** for reading raw data from the uploaded file.
 
 ---
 
-### How the LLM-Based Approach Works
+### How the GPT-4.1-Based Approach Works
 
 1. A lightweight Power Automate **tool** reads raw SQL Server data from the uploaded file and returns it as structured JSON
-2. The Copilot agent's LLM receives the raw data and applies intelligent analysis:
+2. The GPT-4.1 model receives the raw data and applies intelligent analysis:
    - **Consolidation by version**: Groups SQL Server entries by version, identifying unique SQL Server installations
    - **Update/client removal**: Identifies and removes SQL Server updates, cumulative updates, service packs (as separate noise entries), and dependent client tools (SSMS, SQL Native Client, etc.)
    - **Instance deduplication**: Consolidates duplicate entries for the same instance (MachineName + InstanceName) while preserving distinct version entries
    - **Version grouping**: Organizes results grouped by SQL Server version for clarity
-3. The LLM outputs a clean, deduplicated JSON array of unique SQL Server entries
+3. The GPT-4.1 model outputs a clean, deduplicated JSON array of unique SQL Server entries
 4. Results are stored in a global variable for the Report Generator
 
 ```
@@ -2405,7 +2405,7 @@ This agent uses the Copilot Studio LLM to analyze and consolidate SQL Server inv
 │  1. Call Tool: "Read SQL Server Inventory Data" (Power Automate)            │
 │     └─→ Returns raw SQL Server rows as JSON                                │
 │                                                                             │
-│  2. LLM Analysis (performed by the Copilot agent's model):                 │
+│  2. GPT-4.1 Model Analysis (performed by the Copilot agent's model):                 │
 │     ├─→ Consolidate SQL Server instances by version                        │
 │     ├─→ Remove updates, cumulative updates, and dependent clients          │
 │     ├─→ Deduplicate by MachineName + InstanceName                          │
@@ -2613,7 +2613,7 @@ unless the user explicitly asks for them.
    - `rowCount` → `Topic.sqlRowCount`
    - `status` → `Topic.readStatus`
 
-#### Step 4.5: Add Message Node - LLM Analysis Prompt
+#### Step 4.5: Add Message Node - GPT-4.1 Model Analysis Prompt
 
 1. Click **+** → **Send a message**
 2. Enter:
@@ -2637,7 +2637,7 @@ instructions and return:
 1. Click **+** → **Set a variable value**
 2. Set variable: **Global.consolidatedSQLInstances**
    - Change scope to "Global"
-3. Value: Set to the LLM's analysis output (the JSON array)
+3. Value: Set to the GPT-4.1 model's analysis output (the JSON array)
 
 #### Step 4.7: Add Confirmation Message
 
@@ -2665,7 +2665,7 @@ The consolidated SQL Server list has been stored and is ready for report generat
 2. Type: `Process SQL Server inventory`
 3. Verify:
    - The agent calls the "Read SQL Server Inventory Data" tool
-   - The LLM correctly consolidates instances by MachineName + InstanceName
+   - The GPT-4.1 model correctly consolidates instances by MachineName + InstanceName
    - Updates and dependent clients (SSMS, Native Client, ODBC Driver) are removed
    - Results are grouped by SQL Server version
    - Default values are applied (MSSQLSERVER for empty instance, 1433 for empty port)
@@ -2690,19 +2690,19 @@ The consolidated SQL Server list has been stored and is ready for report generat
 
 ### Purpose
 
-This agent uses the Copilot Studio LLM to analyze and consolidate web application inventory data from Azure Migrate exports. The LLM applies reasoning to identify unique web applications, remove noise and duplicates, and produce a comprehensive unique web app list. Power Automate is used **only** for reading raw data from the uploaded file.
+This agent uses the GPT-4.1 model to analyze and consolidate web application inventory data from Azure Migrate exports. The GPT-4.1 model applies reasoning to identify unique web applications, remove noise and duplicates, and produce a comprehensive unique web app list. Power Automate is used **only** for reading raw data from the uploaded file.
 
 ---
 
-### How the LLM-Based Approach Works
+### How the GPT-4.1-Based Approach Works
 
 1. A lightweight Power Automate **tool** reads raw web application data from the uploaded file and returns it as structured JSON
-2. The Copilot agent's LLM receives the raw data and applies intelligent analysis:
+2. The GPT-4.1 model receives the raw data and applies intelligent analysis:
    - **Web app identification**: Identifies distinct web applications by name, server type, and configuration
    - **Noise removal**: Filters out default/system web apps, placeholder entries, and infrastructure components
    - **Consolidation**: Groups identical web apps across machines, preserving unique configurations
    - **Framework detection**: Identifies framework/runtime versions associated with each web app
-3. The LLM outputs a clean, deduplicated JSON array of unique web applications
+3. The GPT-4.1 model outputs a clean, deduplicated JSON array of unique web applications
 4. Results are stored in a global variable for the Report Generator
 
 ```
@@ -2712,7 +2712,7 @@ This agent uses the Copilot Studio LLM to analyze and consolidate web applicatio
 │  1. Call Tool: "Read Web App Inventory Data" (Power Automate)               │
 │     └─→ Returns raw web application rows as JSON                           │
 │                                                                             │
-│  2. LLM Analysis (performed by the Copilot agent's model):                 │
+│  2. GPT-4.1 Model Analysis (performed by the Copilot agent's model):                 │
 │     ├─→ Identify unique web applications by name and configuration         │
 │     ├─→ Remove default/system web apps and noise                           │
 │     ├─→ Consolidate identical apps across multiple machines                │
@@ -2917,7 +2917,7 @@ unless the user explicitly asks for them.
    - `rowCount` → `Topic.webAppRowCount`
    - `status` → `Topic.readStatus`
 
-#### Step 4.5: Add Message Node - LLM Analysis Prompt
+#### Step 4.5: Add Message Node - GPT-4.1 Model Analysis Prompt
 
 1. Click **+** → **Send a message**
 2. Enter:
@@ -2941,7 +2941,7 @@ instructions and return:
 1. Click **+** → **Set a variable value**
 2. Set variable: **Global.consolidatedWebApps**
    - Change scope to "Global"
-3. Value: Set to the LLM's analysis output (the JSON array)
+3. Value: Set to the GPT-4.1 model's analysis output (the JSON array)
 
 #### Step 4.7: Add Confirmation Message
 
@@ -2969,7 +2969,7 @@ The consolidated web application list has been stored and is ready for report ge
 2. Type: `Process web app inventory`
 3. Verify:
    - The agent calls the "Read Web App Inventory Data" tool
-   - The LLM correctly identifies unique web applications
+   - The GPT-4.1 model correctly identifies unique web applications
    - Default/system web apps are filtered as noise
    - Same web app on multiple machines is consolidated
    - Results are grouped by web server type
@@ -3224,7 +3224,7 @@ The Power Automate flow receives the GPT-4.1-formatted data and writes it to Azu
    - **Expiry time**: Expression: `addHours(utcNow(), 24)`
 4. Rename to: `Create Download Link`
 
-> **Note:** The **Create SAS URI by path (V2)** action is a built-in Azure Blob Storage connector action in Power Automate that generates a time-limited, read-only SAS URL without custom code. The URL expires after 24 hours (configurable). If this action is not available in your environment, use an Azure Function or pre-configured SAS token (see Flow 2: Get Processing Status for alternatives).
+> **Note:** The **Create SAS URI by path (V2)** action is a built-in Azure Blob Storage connector action in Power Automate that generates a time-limited, read-only SAS URL without custom code. The URL expires after 24 hours (configurable). If this action is not available in your environment, use a pre-configured SAS token or Logic App with Managed Identity (see Flow 2: Get Processing Status for alternatives).
 
 #### Step 9.2: Store the Download URL
 
@@ -3477,9 +3477,9 @@ For the Report Generator to work properly, you need an Excel template with prede
 
 ## Orchestrating the Agents
 
-The Copilot agent orchestrates all processing through its topic flow. The agent's LLM coordinates the sequence: reading data, analyzing each inventory type, and generating the final report. A lightweight Power Automate Orchestrator flow is used only when needed — specifically, when you need to coordinate multiple file processing or provide centralized error handling beyond what the agent topics handle.
+The Copilot agent orchestrates all processing through its topic flow. The agent's GPT-4.1 model coordinates the sequence: reading data, analyzing each inventory type, and generating the final report. A lightweight Power Automate Orchestrator flow is used only when needed — specifically, when you need to coordinate multiple file processing or provide centralized error handling beyond what the agent topics handle.
 
-> **Note**: In the LLM-first approach, much of the orchestration happens within the Copilot agent's topics. The agent calls each processing topic in sequence, passing results between them via global variables. The Power Automate Orchestrator below is provided for scenarios where you need to process multiple files or require flow-level error handling.
+> **Note**: In the GPT-4.1-first approach, much of the orchestration happens within the Copilot agent's topics. The agent calls each processing topic in sequence, passing results between them via global variables. The Power Automate Orchestrator below is provided for scenarios where you need to process multiple files or require flow-level error handling.
 
 > **⚠️ Important**: The data extraction flows created in Agents 2, 3, and 4 (`Read Application Inventory Data`, `Read SQL Server Inventory Data`, `Read Web App Inventory Data`) use the **"When an agent calls the flow"** trigger and are designed to be called directly by Copilot Studio topics as Tools. If you also need the Power Automate Orchestrator below to call these processors via HTTP, you must create **separate HTTP-triggered versions** of these flows (using the "When a HTTP request is received" trigger). Alternatively, you can rely entirely on the Copilot agent's topic-based orchestration and skip the Power Automate Orchestrator.
 
@@ -4008,11 +4008,11 @@ In the **If no** branch:
 
 | Flow Name | Type | Purpose |
 |-----------|------|---------|
-| `Azure Migrate Processing Orchestrator` | Parent/Main | Coordinates all processing (optional with LLM-first approach) |
+| `Azure Migrate Processing Orchestrator` | Parent/Main | Coordinates all processing (optional with GPT-4.1-first approach) |
 | `Handle File Upload (Blob Storage)` | Agent Tool | Saves files to Azure Blob Storage and returns file path |
-| `Read Application Inventory Data` | Agent Tool | Reads raw application data for LLM analysis |
-| `Read SQL Server Inventory Data` | Agent Tool | Reads raw SQL Server data for LLM analysis |
-| `Read Web App Inventory Data` | Agent Tool | Reads raw web app data for LLM analysis |
+| `Read Application Inventory Data` | Agent Tool | Reads raw application data for GPT-4.1 model analysis |
+| `Read SQL Server Inventory Data` | Agent Tool | Reads raw SQL Server data for GPT-4.1 model analysis |
+| `Read Web App Inventory Data` | Agent Tool | Reads raw web app data for GPT-4.1 model analysis |
 | `Generate Consolidated Report` | Child | Creates Excel and download link |
 | `Get Processing Status` | Utility | Checks processing status |
 
@@ -4059,13 +4059,13 @@ Because each HTTP action's URI comes from the target flow's trigger, you must **
    - `Read Web App Inventory Data`
    - `Generate Consolidated Report`
 2. **Orchestrator flow** (optional — `Azure Migrate Processing Orchestrator`) — only needed for multi-file batch processing; paste the tool flow URLs into its HTTP actions, then save to generate its own URL
-3. **File Upload Handler flow** (`Handle File Upload`) — in the LLM-first approach, this flow does NOT call the Orchestrator. It stores the file and returns the file path to the agent, which coordinates processing via topic redirects
+3. **File Upload Handler flow** (`Handle File Upload`) — in the GPT-4.1-first approach, this flow does NOT call the Orchestrator. It stores the file and returns the file path to the agent, which coordinates processing via topic redirects
 
-> **Note**: In the LLM-first approach, the agent tool flows use the "When an agent calls the flow" trigger and are registered directly as Tools in Copilot Studio. The Orchestrator flow is optional and only needed for multi-file batch processing or flow-level error handling.
+> **Note**: In the GPT-4.1-first approach, the agent tool flows use the "When an agent calls the flow" trigger and are registered directly as Tools in Copilot Studio. The Orchestrator flow is optional and only needed for multi-file batch processing or flow-level error handling.
 
 #### URI value summary per HTTP action
 
-> **Note**: The `Read *` flows created in Agents 2, 3, and 4 use the "When an agent calls the flow" trigger (for Copilot Studio Tool integration). The `Handle File Upload` flows also use this trigger and return the file path to the agent — they do **not** call the Orchestrator in the LLM-first approach. If you use the optional Power Automate Orchestrator for multi-file batch processing, you need separate HTTP-triggered versions of the data extraction flows. If you use only the Copilot agent's topic-based orchestration (recommended), you do not need these HTTP action URIs for the File Upload or data extraction flows.
+> **Note**: The `Read *` flows created in Agents 2, 3, and 4 use the "When an agent calls the flow" trigger (for Copilot Studio Tool integration). The `Handle File Upload` flows also use this trigger and return the file path to the agent — they do **not** call the Orchestrator in the GPT-4.1-first approach. If you use the optional Power Automate Orchestrator for multi-file batch processing, you need separate HTTP-triggered versions of the data extraction flows. If you use only the Copilot agent's topic-based orchestration (recommended), you do not need these HTTP action URIs for the File Upload or data extraction flows.
 
 | Calling Flow | HTTP Action Name | URI Value (paste from) |
 |-------------|-----------------|----------------------|
@@ -4074,7 +4074,7 @@ Because each HTTP action's URI comes from the target flow's trigger, you must **
 | Azure Migrate Processing Orchestrator (optional) | Call Web App Processor | HTTP POST URL from HTTP-triggered version of `Read Web App Inventory Data` |
 | Azure Migrate Processing Orchestrator (optional) | Call Report Generator | HTTP POST URL from `Generate Consolidated Report` |
 
-> **Note**: In the recommended LLM-first approach, the `Handle File Upload` flow stores the file and returns the path to the Copilot agent. The agent then uses topic redirects to call each processing topic (Agent 2, 3, 4) in sequence. No HTTP action URIs are needed for the File Upload flow.
+> **Note**: In the recommended GPT-4.1-first approach, the `Handle File Upload` flow stores the file and returns the path to the Copilot agent. The agent then uses topic redirects to call each processing topic (Agent 2, 3, 4) in sequence. No HTTP action URIs are needed for the File Upload flow.
 
 ---
 
@@ -4127,7 +4127,7 @@ Actions:
    - message: "File uploaded successfully to temporary storage. Processing has started."
 ```
 
-> **Note:** In the LLM-first architecture, this flow does NOT call the Orchestrator. It stores the file and returns the `filePath` to the Copilot agent, which stores it in `Global.uploadedFilePath` and then coordinates processing by redirecting to each analysis topic (Agent 2, 3, 4) in sequence.
+> **Note:** In the GPT-4.1-first architecture, this flow does NOT call the Orchestrator. It stores the file and returns the `filePath` to the Copilot agent, which stores it in `Global.uploadedFilePath` and then coordinates processing by redirecting to each analysis topic (Agent 2, 3, 4) in sequence.
 >
 > **Important:** Every output in the **Respond to the agent** action must have a value. Wrap dynamic expressions in `coalesce()` (e.g., `coalesce(outputs('Generate_Session_ID'), '')`) so the flow returns an empty string instead of null when an action produces no result.
 >
@@ -4220,43 +4220,23 @@ Actions:
 
 For Azure Blob Storage, you have several options to generate secure download URLs:
 
-1. **Azure Function (Recommended)**:
-   ```csharp
-   // Azure Function to generate SAS URL with input validation
-   [FunctionName("GenerateSasUrl")]
-   public static async Task<IActionResult> Run(
-       [HttpTrigger] HttpRequest req)
-   {
-       string sessionId = req.Query["sessionId"];
-       string fileName = req.Query["fileName"];
-       
-       // Validate inputs - prevent path traversal attacks
-       if (string.IsNullOrEmpty(sessionId) || string.IsNullOrEmpty(fileName))
-           return new BadRequestObjectResult("sessionId and fileName are required");
-       
-       // Validate sessionId is a valid GUID format
-       if (!Guid.TryParse(sessionId, out _))
-           return new BadRequestObjectResult("Invalid sessionId format");
-       
-       // Validate fileName doesn't contain path traversal sequences
-       if (fileName.Contains("..") || fileName.Contains("/") || fileName.Contains("\\"))
-           return new BadRequestObjectResult("Invalid fileName");
-       
-       // Construct validated blob path
-       string blobPath = $"{sessionId}/{fileName}";
-       
-       var sasBuilder = new BlobSasBuilder
-       {
-           BlobContainerName = "reports",
-           BlobName = blobPath,
-           Resource = "b",
-           ExpiresOn = DateTimeOffset.UtcNow.AddHours(24)
-       };
-       // Read-only permission for download
-       sasBuilder.SetPermissions(BlobSasPermissions.Read);
-       // Generate and return SAS URL
-   }
+1. **Create SAS URI by path (V2) — Power Automate connector (Recommended)**:
+   This is the built-in Azure Blob Storage connector action in Power Automate. No custom code or Azure Functions required:
    ```
+   Action: Create SAS URI by path (V2)
+   Configuration:
+     - Storage account: Select your Azure Storage Account connection
+     - Container: reports
+     - Blob path: @{variables('reportFilePath')}
+     - Permissions: Read
+     - Expiry time: @{addHours(utcNow(), 24)}
+   
+   Output: WebUrl — a time-limited, read-only SAS URL
+   ```
+   > **Security notes:**
+   > - The SAS URL expires after 24 hours (configurable via the Expiry time expression)
+   > - Read-only permission prevents modification of the report
+   > - The blob path is constructed from validated sessionId and fileName variables — ensure these are validated upstream to prevent path traversal
 
 2. **Pre-configured SAS Token**: Use a service SAS with read-only permissions
 3. **Logic App with Managed Identity**: Use Azure Logic Apps with managed identity for blob access
@@ -4338,20 +4318,20 @@ Output Mapping:
 
 1. **Test Application Inventory Processor**
    - [ ] Upload CSV with 100 applications
-   - [ ] Verify LLM correctly identifies noise (updates, patches, drivers)
+   - [ ] Verify GPT-4.1 model correctly identifies noise (updates, patches, drivers)
    - [ ] Verify exact name match consolidation
    - [ ] Verify version variants are preserved as separate entries
    - [ ] Check output JSON format
 
 2. **Test SQL Server Processor**
    - [ ] Upload CSV with SQL instances
-   - [ ] Verify LLM consolidates by version grouping
+   - [ ] Verify GPT-4.1 model consolidates by version grouping
    - [ ] Verify updates and dependent clients are removed
    - [ ] Check default instance handling (MSSQLSERVER, port 1433)
 
 3. **Test Web App Processor**
    - [ ] Upload CSV with various web application types
-   - [ ] Verify LLM-based noise removal (default sites, system pages)
+   - [ ] Verify GPT-4.1-based noise removal (default sites, system pages)
    - [ ] Check web server type grouping
    - [ ] Verify duplicate handling across machines
 
@@ -4735,13 +4715,13 @@ System utilities:
 
 ### Version / Duplicate Handling Logic
 
-> **Note:** In the LLM-first approach (Agent 2, Steps 3-4), the Copilot agent's LLM uses its reasoning to identify duplicates and consolidate applications. The LLM is instructed to: (1) use exact application name match (case-insensitive) for consolidation, (2) keep different versions of the same application as separate entries, and (3) merge identical application + version combinations from different machines into one entry with a machine list. This is more intelligent than the previous first-occurrence-wins approach, as the LLM can handle edge cases in naming.
+> **Note:** In the GPT-4.1-first approach (Agent 2, Steps 3-4), the GPT-4.1 model uses its reasoning to identify duplicates and consolidate applications. The GPT-4.1 model is instructed to: (1) use exact application name match (case-insensitive) for consolidation, (2) keep different versions of the same application as separate entries, and (3) merge identical application + version combinations from different machines into one entry with a machine list. This is more intelligent than the previous first-occurrence-wins approach, as the GPT-4.1 model can handle edge cases in naming.
 
 ```
-LLM-based consolidation behavior (as implemented in Agent 2):
+GPT-4.1-based consolidation behavior (as implemented in Agent 2):
 For applications:
-1. LLM identifies noise using reasoning (updates, patches, drivers, dependencies)
-2. LLM groups by exact application name match (case-insensitive)
+1. GPT-4.1 model identifies noise using reasoning (updates, patches, drivers, dependencies)
+2. GPT-4.1 model groups by exact application name match (case-insensitive)
 3. Different versions of the same application → separate entries
 4. Same application + version on multiple machines → merged entry with machine list
 5. Application-dependent drivers/updates → classified as noise and removed
@@ -4756,6 +4736,7 @@ For applications:
 | **Azure Migrate** | Microsoft service for discovering, assessing, and migrating workloads to Azure |
 | **Azure Blob Storage** | Microsoft's object storage solution for the cloud, used for file storage (uploads and reports) in this solution |
 | **CSV** | Comma-Separated Values file format |
+| **GPT-4.1** | The OpenAI model configured as the associated model in Copilot Studio agents for performing validation, consolidation, and analysis tasks |
 | **Copilot Studio** | Microsoft's no-code platform for building conversational AI agents |
 | **Power Automate** | Microsoft's workflow automation platform |
 | **SAS Token** | Shared Access Signature - a URI that grants restricted access to Azure Storage resources |
@@ -4767,7 +4748,7 @@ For applications:
 
 ---
 
-**Document Version**: 1.1  
+**Document Version**: 1.2  
 **Last Updated**: March 2026  
 **Author**: AZMrepo Project Team
 
