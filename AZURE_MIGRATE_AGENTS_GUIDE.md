@@ -126,7 +126,7 @@ The Azure Migrate export files contain the following sheets:
 │                     AGENT 5: Report Generator                               │
 │  • Combine processed data from all agents (in-memory via Global vars)      │
 │  • Create multi-sheet Excel file (Power Automate — only persistent I/O)    │
-│  • Store report in Azure Blob Storage or SharePoint (download link only)   │
+│  • Store report in Azure Blob Storage (download link only)                │
 │  • Generate download link                                                   │
 │  • Notify user with download URL                                            │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -148,7 +148,7 @@ The Azure Migrate export files contain the following sheets:
 |-----------|---------|------------|
 | File Upload Handler | Accept CSV files, verify sheet compliance (LLM), coordinate processing topics | Copilot Studio + Power Automate (sheet validation and optional file storage) |
 | Sheet Validation | LLM verifies required sheets exist, reports compliance to user | Copilot Studio LLM + Power Automate (read sheet names only) |
-| Temporary Storage | Store uploaded files only when needed (large files, multi-session, audit) | Azure Blob Storage (recommended) or SharePoint — in-memory preferred for processing |
+| Temporary Storage | Store uploaded files only when needed (large files, multi-session, audit) | Azure Blob Storage — in-memory preferred for processing |
 | App Inventory Processor | LLM-based application consolidation, noise detection, and CSV dedup report | Copilot Studio LLM + Power Automate (data read only) |
 | SQL Server Processor | LLM-based SQL Server consolidation and version grouping | Copilot Studio LLM + Power Automate (data read only) |
 | Web App Processor | LLM-based web application consolidation | Copilot Studio LLM + Power Automate (data read only) |
@@ -168,35 +168,30 @@ The Azure Migrate export files contain the following sheets:
    - Power Automate access
    - Microsoft Excel Online
 
-2. **Temporary Storage Setup** (choose one option):
-   - **Option A: Azure Blob Storage (Recommended)** - Create ONE shared storage account for all users
-   - **Option B: SharePoint/OneDrive** - Requires users have SharePoint or OneDrive access
+2. **Storage Setup**:
+   - **Azure Blob Storage** - Create ONE shared storage account for all users
 
 3. **Permissions for Setup**:
    - Copilot Studio environment creator/maker
    - Power Automate flow creator
-   - Azure Storage Blob Data Contributor (for Option A - admin only)
-   - SharePoint site contributor (for Option B)
+   - Azure Storage Blob Data Contributor (admin only)
 
 4. **Environment Setup**:
-   - Azure Storage Account with containers (for Option A)
-   - A dedicated SharePoint site or OneDrive folder (for Option B)
+   - Azure Storage Account with containers
    - Azure AD application (optional, for advanced authentication)
 
 **For End Users** (using the agent):
 
-| Storage Option | What Users Need |
-|----------------|-----------------|
-| **Option A: Azure Blob Storage** | ✅ NO Azure access needed - users only interact through Copilot chat |
-| **Option B: SharePoint** | ⚠️ Users need SharePoint/OneDrive access to download reports |
+| What Users Need |
+|-----------------|
+| ✅ NO Azure access needed - users only interact through Copilot chat |
 
-### Option A: Prepare Azure Blob Storage (Recommended - No SharePoint/OneDrive Required)
+### Prepare Azure Blob Storage
 
-Azure Blob Storage provides temporary file storage without requiring users to have SharePoint or OneDrive access. This is the recommended approach for scenarios where:
-- Users don't have SharePoint/OneDrive licenses
-- You need isolated temporary storage for processing
-- You want to avoid SharePoint storage quota constraints
-- You need programmatic file retention policies
+Azure Blob Storage provides temporary file storage for uploaded files and persistent storage for the final report. Benefits include:
+- Isolated temporary storage for processing
+- Programmatic file retention policies
+- No dependency on user licenses for storage access
 
 #### Access Model - Who Needs What Access?
 
@@ -302,42 +297,12 @@ Azure Blob Storage provides temporary file storage without requiring users to ha
    - Set expiry date appropriately
    - Generate SAS token for use in Power Automate
 
-### Option B: Prepare SharePoint Storage (Alternative)
-
-If you prefer to use SharePoint for storage (requires users have SharePoint access):
-
-1. **Create a SharePoint Site** (or use existing):
-   ```
-   Site Name: Azure-Migrate-Processing
-   Template: Team Site
-   ```
-
-2. **Create Document Libraries**:
-   - `Uploads` - For incoming CSV files
-   - `Processing` - For intermediate files
-   - `Reports` - For generated output files
-
-3. **Set Up Folder Structure**:
-   ```
-   /Uploads/
-       └── {SessionID}/
-           └── raw files here
-   /Processing/
-       └── {SessionID}/
-           ├── applications_consolidated.json
-           ├── sql_consolidated.json
-           └── webapps_consolidated.json
-   /Reports/
-       └── {SessionID}/
-           └── ConsolidatedReport_{timestamp}.xlsx
-   ```
-
 ---
 
 ## Agent 1: File Upload Handler
 
 ### Purpose
-This agent is the **starting point of the Azure Migrate processing flow**. It provides users with instructions to upload Azure Migrate extracted CSV files, accepts the file uploads, **uses the LLM to verify sheet compliance** (checking that required sheets exist and reporting which are missing), stores files when needed, and coordinates the LLM-based processing sequence by conditionally redirecting to the analysis topics (Agents 2, 3, 4) only for verified sheets.
+This agent is the **starting point of the Azure Migrate processing flow**. It provides users with instructions to upload Azure Migrate extracted CSV files, accepts the file uploads, **uses the LLM to verify sheet compliance** (checking that required sheets exist and reporting which are missing), stores files in Azure Blob Storage, and coordinates the LLM-based processing sequence by conditionally redirecting to the analysis topics (Agents 2, 3, 4) only for verified sheets.
 
 > **Important**: This agent is:
 > - **NOT conversational** - It follows a structured flow without general chat capabilities
@@ -345,13 +310,6 @@ This agent is the **starting point of the Azure Migrate processing flow**. It pr
 > - **Sheet compliance verifier** - The LLM checks the uploaded file for required sheets (ApplicationInventory, SQL Server, WebApplications) and reports ✅/❌ status for each before processing
 > - **The coordinator of the processing flow** - After verification, it triggers each LLM analysis topic **only for sheets that are present** (skipping missing sheets)
 > - Designed to work with **in-memory data passing** where possible, using persistent storage (Azure Blob Storage) **only for the final report**
-
-### Storage Options
-
-| Option | User Requirements | Best For |
-|--------|-------------------|----------|
-| **Azure Blob Storage (Recommended)** | No SharePoint/OneDrive access required | Organizations where users don't have SharePoint access, or need isolated temporary storage |
-| **SharePoint/OneDrive** | Users must have SharePoint/OneDrive access | Organizations already using SharePoint with appropriate user licenses |
 
 ---
 
@@ -518,7 +476,7 @@ PROCESSING ARCHITECTURE (LLM-first, in-memory approach):
   each analysis topic in order
 - Data is kept IN MEMORY via global variables wherever possible — the uploaded file
   content is passed directly to data extraction tools without requiring intermediate
-  storage. Persistent storage (Azure Blob or SharePoint) is used ONLY for the final
+  storage. Persistent storage (Azure Blob Storage) is used ONLY for the final
   generated report that the user needs to download
 - Agents 2, 3, and 4 use your LLM reasoning to analyze raw data from the file.
   Power Automate is used ONLY for reading raw data from files and writing the final
@@ -1658,25 +1616,25 @@ This lightweight flow reads the sheet names from the uploaded Excel file and ret
 
 ##### Step 5.5.3: Add Office Script or Excel Action to List Sheets
 
-> **Important prerequisite:** The Excel Online (Business) connector's **Run script** action requires the file to be accessible in a SharePoint or OneDrive location. Since the uploaded file arrives as raw file content from the agent, you must **first save it to a temporary location** before running the script. Add a **Create file** action (SharePoint) before the Run script action to write the uploaded file content to a temporary path.
+> **Important prerequisite:** The Excel Online (Business) connector's **Run script** action requires the file to be accessible via a URL or storage location. Since the uploaded file arrives as raw file content from the agent, you must **first save it to Azure Blob Storage** before running the script. Add a **Create blob (V2)** action before the Run script action to write the uploaded file content to a temporary path.
 
 > **Option A — Office Scripts (Recommended for .xlsx files):**
 > Use the **Run script** action (Excel Online Business connector) with an Office Script that returns sheet names. This is the most reliable approach for listing sheet names.
 
-**Step A1: Save file temporarily for script access**
+**Step A1: Save file temporarily to Azure Blob Storage for script access**
 
 1. Click **+** → **Add an action**
-2. Search for `SharePoint` → Select **Create file**
+2. Search for `Azure Blob Storage` → Select **Create blob (V2)**
 3. Configure:
-   - **Site Address**: Select your SharePoint site — **PLACEHOLDER – replace with your site**
-   - **Folder Path**: `/Uploads/temp` — **PLACEHOLDER – replace with your temp folder**
-   - **File Name**: Expression: `triggerBody()?['uploadedFiles']?['name']`
-   - **File Content**: Expression: `triggerBody()?['uploadedFiles']?['contentBytes']`
+   - **Storage account name or blob endpoint**: Select your Azure Storage Account connection — **PLACEHOLDER – replace with your account**
+   - **Container name**: `uploads`
+   - **Blob name**: Expression: `concat('temp/', triggerBody()?['uploadedFiles']?['name'])`
+   - **Blob content**: Expression: `triggerBody()?['uploadedFiles']?['contentBytes']`
 4. Rename to: `Save Temp File For Validation`
 
 **Step A2: Create the Office Script**
 
-1. Open Excel Online (go to your SharePoint site, open any Excel file)
+1. Open Excel Online (go to https://www.office.com and open any Excel file)
 2. Click the **Automate** tab in the ribbon
 3. Click **New Script** (or **Script Editor**)
 4. Delete any default code and paste the following:
@@ -1686,18 +1644,20 @@ This lightweight flow reads the sheet names from the uploaded Excel file and ret
    }
    ```
 5. Name the script: `List Sheet Names`
-6. Click **Save** — the script is saved to your OneDrive under `Documents/Office Scripts/`
+6. Click **Save** — the script is saved under `Documents/Office Scripts/`
 
 **Step A3: Add the Run Script action**
 
 1. Back in the Power Automate flow designer, click **+** → **Add an action**
 2. Search for `Excel Online` → Select **Run script** (Excel Online Business)
 3. Configure:
-   - **Location**: Select your SharePoint site — **PLACEHOLDER – replace with your site**
-   - **Document Library**: Select the library where you saved the temp file (e.g., `Uploads`)
+   - **Location**: Select your Azure Blob Storage location or the OneDrive for Business location where the temp file is accessible — **PLACEHOLDER – replace with your location**
+   - **Document Library**: Select the library where you saved the temp file
    - **File**: Use the file identifier from the "Save Temp File For Validation" action output
    - **Script**: Select `List Sheet Names` from the dropdown (the script you created in Step A2)
 4. Rename to: `List Sheet Names`
+
+> **Note:** The Excel Online (Business) connector's **Run script** action currently requires the file to be in a location accessible by the connector. If you store the temp file in Azure Blob Storage, you may need to use a **Get blob content** action followed by a custom parsing approach. An alternative is to parse the Excel file content directly using a custom connector or Azure Function.
 
 > **Option B — Parse Excel directly:**
 > If Office Scripts are not available in your environment, use a Compose action with the file content and extract sheet names using available connectors. The exact approach depends on your connector availability and licensing.
@@ -1823,9 +1783,7 @@ Testing Checklist for File Upload Handler:
 
 ### Step 7: Configure the File Upload Flow Logic (Power Automate)
 
-The file upload agent flow stores uploaded files in temporary storage. Choose the appropriate configuration based on your storage choice:
-
-#### Option A: Azure Blob Storage (Recommended - No SharePoint/OneDrive Required)
+The file upload agent flow stores uploaded files in Azure Blob Storage for manipulation and processing.
 
 > **Important — Action naming:** In Power Automate, expressions like `outputs('Generate_Session_ID')` reference actions by their **internal name**, which is the display name with spaces replaced by underscores. If you add a Compose action and leave its default name ("Compose"), the expression `outputs('Generate_Session_ID')` will fail with an "invalid reference" error. You **must** rename actions exactly as shown in the "Rename to:" instructions below so that the internal name matches the expressions used later in the flow.
 
@@ -1900,82 +1858,11 @@ This action builds the full path to the uploaded file in blob storage, which is 
 > **Note:** Access the uploaded file data using `triggerBody()?['uploadedFiles']?['name']` and `triggerBody()?['uploadedFiles']?['contentBytes']`. The key names in `triggerBody()` match the input parameter names defined on the trigger. Every output in the **Respond to the agent** action must have a value — use `coalesce()` to wrap any dynamic expression so a default value (e.g., `''`) is returned when the action produces no result. The `filePath` output is stored in `Global.uploadedFilePath` by the agent topic and passed to each data extraction tool (Agents 2, 3, 4).
 
 **Benefits of Azure Blob Storage:**
-- Users do NOT need SharePoint or OneDrive access
 - Automatic cleanup via lifecycle management policies
 - Cost-effective for temporary file storage
 - Better suited for large file uploads
 - Supports programmatic access via SAS tokens
-
-#### Option B: SharePoint Storage (Alternative)
-
-> **Note**: This option requires users to have SharePoint or OneDrive access.
-
-1. Open the flow designer for **Handle File Upload - Azure Migrate** (same as Option A step 1)
-2. Add the following actions between the trigger and the **Respond to the agent** action:
-
-##### Step 7.1 (SharePoint): Add Compose — Generate Session ID
-
-1. Click the **+** (Add an action) icon below the trigger
-2. Search for and select **Compose** (under Built-in > Data Operations)
-3. In the **Inputs** field, click the **Expression** tab (fx) and type:
-   ```
-   guid()
-   ```
-4. Click **OK**
-5. Rename the action to: `Generate Session ID`
-
-##### Step 7.2 (SharePoint): Add Create Folder
-
-1. Click the **+** (Add an action) icon below the Compose action
-2. Search for **Create new folder** and select it from the **SharePoint** connector
-3. Configure:
-   - **Site Address**: Select your SharePoint site
-   - **List or Library**: Select your document library (e.g., `Shared Documents`)
-   - **Folder Path**: Click in the field, switch to the **Expression** tab, and enter:
-     ```
-     /Uploads/@{outputs('Generate_Session_ID')}
-     ```
-
-##### Step 7.3 (SharePoint): Add Create File
-
-1. Click the **+** (Add an action) icon below the Create folder action
-2. Search for **Create file** and select it from the **SharePoint** connector
-3. Configure:
-   - **Site Address**: Select your SharePoint site
-   - **Folder Path**: `/Uploads/@{outputs('Generate_Session_ID')}`
-   - **File Name**: `@{triggerBody()?['uploadedFiles']?['name']}`
-   - **File Content**: `@{triggerBody()?['uploadedFiles']?['contentBytes']}`
-
-##### Step 7.4 (SharePoint): Add Compose — Build File Path
-
-1. Click the **+** (Add an action) icon below the Create file action
-2. Search for and select **Compose** (under Built-in > Data Operations)
-3. In the **Inputs** field, click the **Expression** tab (fx) and enter:
-   ```
-   concat('/Uploads/', outputs('Generate_Session_ID'), '/', triggerBody()?['uploadedFiles']?['name'])
-   ```
-4. Click **OK**
-5. Rename the action to: `Build File Path`
-
-> **Why this step?** In the LLM-first architecture, the Copilot agent's topics coordinate processing — not a Power Automate Orchestrator. The file path is returned to the agent so it can pass it to each data extraction tool.
-
-##### Step 7.5 (SharePoint): Configure the Respond to the agent Outputs
-
-1. Click on the existing **Respond to the agent** action at the bottom of the flow
-2. Set the output values:
-   - **sessionId**: Click the value field, switch to the **Expression** tab, and enter:
-     ```
-     coalesce(outputs('Generate_Session_ID'), '')
-     ```
-     Then click **OK**
-   - **filePath**: Click the value field, switch to the **Expression** tab, and enter:
-     ```
-     coalesce(outputs('Build_File_Path'), '')
-     ```
-     Then click **OK**
-   - **status**: Type the literal value: `Processing`
-   - **message**: Type the literal value: `File uploaded successfully. Processing has started.`
-3. Click **Save**
+- Users only interact through the Copilot chat interface
 
 ### Step 4: Test the Upload Agent
 
