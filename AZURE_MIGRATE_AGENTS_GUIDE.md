@@ -1614,14 +1614,14 @@ This lightweight flow reads the sheet names from the uploaded Excel file and ret
    - **Name**: `uploadedFiles`
    - **Description**: `The uploaded Azure Migrate Excel file`
 
-##### Step 5.5.3: Add Office Script or Excel Action to List Sheets
+##### Step 5.5.3: Add Action to List Sheet Names
 
-> **Important prerequisite:** The Excel Online (Business) connector's **Run script** action requires the file to be accessible via a URL or storage location. Since the uploaded file arrives as raw file content from the agent, you must **first save it to Azure Blob Storage** before running the script. Add a **Create blob (V2)** action before the Run script action to write the uploaded file content to a temporary path.
+> **Important prerequisite:** The Excel Online (Business) connector's **Run script** action requires the file to be in a SharePoint or OneDrive location, which is not used in this solution. Since uploaded files are stored in Azure Blob Storage, use one of the following approaches to list sheet names.
 
-> **Option A — Office Scripts (Recommended for .xlsx files):**
-> Use the **Run script** action (Excel Online Business connector) with an Office Script that returns sheet names. This is the most reliable approach for listing sheet names.
+> **Option A — Azure Function (Recommended):**
+> Create a lightweight Azure Function that reads an Excel file from Azure Blob Storage and returns the sheet names. This is the most reliable approach.
 
-**Step A1: Save file temporarily to Azure Blob Storage for script access**
+**Step A1: Save file to Azure Blob Storage**
 
 1. Click **+** → **Add an action**
 2. Search for `Azure Blob Storage` → Select **Create blob (V2)**
@@ -1632,35 +1632,34 @@ This lightweight flow reads the sheet names from the uploaded Excel file and ret
    - **Blob content**: Expression: `triggerBody()?['uploadedFiles']?['contentBytes']`
 4. Rename to: `Save Temp File For Validation`
 
-**Step A2: Create the Office Script**
+**Step A2: Create an Azure Function to list sheet names**
 
-1. Open Excel Online (go to https://www.office.com and open any Excel file)
-2. Click the **Automate** tab in the ribbon
-3. Click **New Script** (or **Script Editor**)
-4. Delete any default code and paste the following:
-   ```typescript
-   function main(workbook: ExcelScript.Workbook): string[] {
-     return workbook.getWorksheets().map(sheet => sheet.getName());
-   }
-   ```
-5. Name the script: `List Sheet Names`
-6. Click **Save** — the script is saved under `Documents/Office Scripts/`
+Create an Azure Function (HTTP-triggered) that accepts a blob path, reads the Excel file from Azure Blob Storage, and returns the sheet names as a JSON array. Example implementation:
 
-**Step A3: Add the Run Script action**
+```csharp
+// Azure Function to list sheet names from an Excel file in Blob Storage
+[FunctionName("ListSheetNames")]
+public static async Task<IActionResult> Run(
+    [HttpTrigger] HttpRequest req)
+{
+    string blobPath = req.Query["blobPath"];
+    // Read blob content, parse Excel, return sheet names as JSON array
+    // Use a library like ClosedXML or EPPlus to read sheet names
+}
+```
+
+**Step A3: Add the HTTP action to call the Azure Function**
 
 1. Back in the Power Automate flow designer, click **+** → **Add an action**
-2. Search for `Excel Online` → Select **Run script** (Excel Online Business)
+2. Search for `HTTP` → Select **HTTP** (built-in)
 3. Configure:
-   - **Location**: Select the location where the temp file is accessible — **PLACEHOLDER – replace with your location**
-   - **Document Library**: Select the library where you saved the temp file
-   - **File**: Use the file identifier from the "Save Temp File For Validation" action output
-   - **Script**: Select `List Sheet Names` from the dropdown (the script you created in Step A2)
+   - **Method**: `GET`
+   - **URI**: Your Azure Function URL — **PLACEHOLDER – replace with your function URL**
+   - **Queries**: `blobPath` = output from "Save Temp File For Validation"
 4. Rename to: `List Sheet Names`
 
-> **Note:** The Excel Online (Business) connector's **Run script** action currently requires the file to be in a location accessible by the connector. If you store the temp file in Azure Blob Storage, you may need to use a **Get blob content** action followed by a custom parsing approach. An alternative is to parse the Excel file content directly using a custom connector or Azure Function.
-
-> **Option B — Parse Excel directly:**
-> If Office Scripts are not available in your environment, use a Compose action with the file content and extract sheet names using available connectors. The exact approach depends on your connector availability and licensing.
+> **Option B — Parse Excel directly in Power Automate:**
+> If Azure Functions are not available, use a **Compose** action with the file content and extract sheet names using available connectors or a custom connector. The exact approach depends on your connector availability and licensing.
 
 ##### Step 5.5.4: Configure Flow Outputs
 
@@ -3164,110 +3163,57 @@ If creating from scratch:
 
 ---
 
-### Step 6: Populate Applications Sheet
+### Step 6: Build and Store the Report (Azure Function Approach)
 
-#### Step 6.1: Add Header Row to Applications Table
+> **Important:** The Excel Online (Business) connector's row-insertion actions require a file in a SharePoint or OneDrive location. Since this solution uses Azure Blob Storage exclusively, we recommend using an **Azure Function** to generate the Excel report and write it directly to Azure Blob Storage. This approach eliminates the dependency on SharePoint/OneDrive for report creation.
+
+#### Step 6.1: Create an Azure Function for Report Generation
+
+Create an HTTP-triggered Azure Function that:
+1. Accepts the consolidated data (applications, SQL instances, web apps) as JSON input
+2. Generates a multi-sheet Excel file using a library like **ClosedXML** (.NET) or **openpyxl** (Python)
+3. Uploads the generated file to Azure Blob Storage (container: `reports`)
+4. Returns the blob path for SAS URL generation
+
+> **Note:** The report template (`templates/ReportTemplate.xlsx`) created in Step 4 can be used as the base. The Azure Function reads the template from blob storage, populates each sheet's table with the provided data, and saves the result to the `reports` container.
+
+#### Step 6.2: Add HTTP Action to Call the Report Generator Function
 
 1. Click **+** → **Add an action**
-2. Search for `Excel Online (Business)`
-3. Select **Add a row into a table**
-4. Configure:
-   - **Location**: Select the location where the report file is stored — **PLACEHOLDER – replace with your location**
-   - **Document Library**: `Reports`
-   - **File**: `@{variables('reportFilePath')}`
-   - **Table**: `UniqueApplications` (must exist in template)
+2. Search for `HTTP` → Select **HTTP** (built-in)
+3. Configure:
+   - **Method**: `POST`
+   - **URI**: Your Azure Function URL — **PLACEHOLDER – replace with your function URL**
+   - **Headers**: `Content-Type`: `application/json`
+   - **Body**: Click **Expression** and enter:
+     ```json
+     {
+       "uniqueApplications": @{triggerBody()?['uniqueApplications']},
+       "uniqueSQLInstances": @{triggerBody()?['uniqueSQLInstances']},
+       "uniqueWebApps": @{triggerBody()?['uniqueWebApps']},
+       "sessionId": "@{triggerBody()?['sessionId']}",
+       "reportFileName": "@{variables('reportFileName')}"
+     }
+     ```
+4. Rename to: `Generate Excel Report`
 
-**Note**: If using a template, the table should already be defined.
-
-#### Step 6.2: Add Applications Data with Apply to Each
+#### Step 6.3: Set Report File Path from Function Response
 
 1. Click **+** → **Add an action**
-2. Select **Apply to each**
+2. Select **Set variable**
 3. Configure:
-   - **Select an output**: Click **Dynamic content** → `uniqueApplications` (from trigger)
-4. Rename to: `Add Application Rows`
+   - **Name**: `reportFilePath`
+   - **Value**: Expression: `body('Generate_Excel_Report')?['reportFilePath']`
+4. Rename to: `Set Report File Path`
 
-##### Inside the Loop - Add Row
-
-1. Inside the loop, click **Add an action**
-2. Search for and select **Add a row into a table** (Excel Online Business)
-3. Configure:
-   - **Location**: Select the location where the report file is stored — **PLACEHOLDER – replace with your location**
-   - **Document Library**: `Reports`
-   - **File**: `@{variables('reportFilePath')}`
-   - **Table**: `UniqueApplications`
-   - **Row data**:
-     - **Application**: Click **Dynamic content** → `Application` (from current item)
-     - **Version**: Click **Dynamic content** → `Version`
-     - **Provider**: Click **Dynamic content** → `Provider`
-     - **MachineName**: Click **Dynamic content** → `MachineName`
-4. Rename to: `Add Application Row`
+> **Alternative approach — Excel Online with OneDrive for Business:**
+> If you prefer to use the Excel Online (Business) connector for row insertion, the report template must be stored in a OneDrive for Business location (accessible to the flow's connection). This approach uses OneDrive for Business **only** for the report generation step — all other storage remains in Azure Blob Storage. After populating the Excel file, copy the final report to Azure Blob Storage for SAS-based download.
 
 ---
 
-### Step 7: Populate SQL Server Sheet
+### Step 7: Generate Download Link
 
-#### Step 7.1: Add SQL Instance Rows
-
-1. After the Applications loop, click **+** → **Add an action**
-2. Select **Apply to each**
-3. Configure:
-   - **Select an output**: `uniqueSQLInstances` (from trigger)
-4. Rename to: `Add SQL Instance Rows`
-
-##### Inside the Loop - Add SQL Row
-
-1. Inside the loop, click **Add an action**
-2. Select **Add a row into a table** (Excel Online Business)
-3. Configure:
-   - **Location**: Select the location where the report file is stored — **PLACEHOLDER – replace with your location**
-   - **Document Library**: `Reports`
-   - **File**: `@{variables('reportFilePath')}`
-   - **Table**: `UniqueSQLInstances`
-   - **Row data**:
-     - **MachineName**: `MachineName`
-     - **InstanceName**: `InstanceName`
-     - **Edition**: `Edition`
-     - **ServicePack**: `ServicePack`
-     - **Version**: `Version`
-     - **Port**: `Port`
-4. Rename to: `Add SQL Instance Row`
-
----
-
-### Step 8: Populate Web Apps Sheet
-
-#### Step 8.1: Add Web App Rows
-
-1. After the SQL loop, click **+** → **Add an action**
-2. Select **Apply to each**
-3. Configure:
-   - **Select an output**: `uniqueWebApps` (from trigger)
-4. Rename to: `Add Web App Rows`
-
-##### Inside the Loop - Add Web App Row
-
-1. Inside the loop, click **Add an action**
-2. Select **Add a row into a table** (Excel Online Business)
-3. Configure:
-   - **Location**: Select the location where the report file is stored — **PLACEHOLDER – replace with your location**
-   - **Document Library**: `Reports`
-   - **File**: `@{variables('reportFilePath')}`
-   - **Table**: `UniqueWebApps`
-   - **Row data**:
-     - **WebAppName**: `WebAppName`
-     - **WebServerType**: `WebServerType`
-     - **VirtualDirectory**: `VirtualDirectory`
-     - **ApplicationPool**: `ApplicationPool`
-     - **FrameworkVersion**: `FrameworkVersion`
-     - **MachineName**: `MachineName`
-4. Rename to: `Add Web App Row`
-
----
-
-### Step 9: Generate Download Link
-
-#### Step 9.1: Generate SAS Download URL
+#### Step 7.1: Generate SAS Download URL
 
 1. After all data loops, click **+** → **Add an action**
 2. Search for `Azure Blob Storage` → Select **Create SAS URI by path (V2)**
@@ -3288,7 +3234,7 @@ If creating from scratch:
 3. Configure:
    - **Name**: `downloadUrl`
    - **Value**: Click **Dynamic content** → Select **Web URL** from "Create Download Link" output
-     - Or use expression: `coalesce(body('Create_Download_Link')?['WebUrl'], '')`
+     - Or use expression: `coalesce(body('Create_SAS_URI_by_path_(V2)')?['WebUrl'], '')`
 4. Rename to: `Store Download URL`
 
 ---
@@ -3438,7 +3384,7 @@ If you have any questions, please contact your IT administrator.
 ┌─────────────────────────────────────────────────────────────────────────┐
 │ When a HTTP request is received                                         │
 │ (Inputs: uniqueApplications, uniqueSQLInstances, uniqueWebApps,         │
-│  sessionId, userEmail, storageType)                                     │
+│  sessionId, userEmail)                                                  │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -3451,38 +3397,20 @@ If you have any questions, please contact your IT administrator.
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Create Report File (Azure Blob Storage)                                   │
+│ Generate Excel Report (Azure Function)                                   │
+│ • Reads template from Azure Blob Storage                                │
+│ • Populates sheets: UniqueApplications, UniqueSQLInstances, UniqueWebApps│
+│ • Saves report to Azure Blob Storage (reports container)                │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Copy Report Template / Create Excel File                                 │
+│ Set Report File Path (from function response)                            │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Set Report File Path                                                     │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-              ┌─────────────────────┼─────────────────────┐
-              ▼                     ▼                     ▼
-┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────┐
-│ FOR EACH Application│ │ FOR EACH SQL Instance│ │ FOR EACH Web App   │
-│   Add row to        │ │   Add row to         │ │   Add row to       │
-│   UniqueApplications│ │   UniqueSQLInstances │ │   UniqueWebApps    │
-│   table             │ │   table              │ │   table            │
-└─────────────────────┘ └─────────────────────┘ └─────────────────────┘
-              │                     │                     │
-              └─────────────────────┼─────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│ Get Report File Metadata                                                 │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│ Create Download Link (Azure Blob SAS URL)                                 │
+│ Create Download Link (Azure Blob SAS URL)                                │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -4689,7 +4617,7 @@ Add error logging to your flows:
 
 ```
 Scope: Error Handling
-  - Create entity (Azure Table Storage: ErrorLog)
+  - Insert Entity (Azure Table Storage: ErrorLog)
     - FlowName: @{workflow().name}
     - ErrorMessage: @{actions('FailedAction')?['error']?['message']}
     - Timestamp: @{utcNow()}
