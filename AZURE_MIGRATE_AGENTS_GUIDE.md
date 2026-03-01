@@ -721,7 +721,7 @@ After saving the topic, verify your global variables are created:
 └────────────────────────────────────┴─────────┴────────────────────────────────────────────────────┘
 ```
 
-> **Recommended new variables:** `Global.applicationDedupCSV` and `Global.detectedSheets` are recommended additions to support the sheet verification and CSV dedup report features. Create them using the same steps as the other global variables above (Step 3.1: navigate to **Topics** → open any topic → click **{x}** variable picker → **Create new** → set Scope to **Global**, Type to **String**, and enter the variable name). These variables are first populated in the sheet verification step (Step 4.1.7 Part A.1) and the application dedup step (Agent 2, Step 4.6.1) respectively.
+> **Recommended new variables:** `Global.applicationDedupCSV` and `Global.detectedSheets` are recommended additions to support the sheet verification and CSV dedup report features. Create them using the same steps as the other global variables above (Step 3.1: navigate to **Topics** → open any topic → click **{x}** variable picker → **Create new** → set Scope to **Global**, Type to **String**, and enter the variable name). `Global.applicationDedupCSV` is first populated in the application dedup step (Agent 2, Step 4.6.1). `Global.detectedSheets` is populated only if you extend the Validate Excel Sheets flow to return sheet names (see the guidance note in Step 4.1.7 Part A.1, step 13). The default Validate Excel Sheets flow (Step 5.5) returns `fileName`, `blobPath`, and `status` — not sheet names.
 
 > **Tip**: Global variable names must be unique across all topics in the agent. Once created, these variables can be accessed and modified from any topic by using the **{x}** variable picker.
 
@@ -918,33 +918,37 @@ I'll now verify the file structure before starting the AI-powered analysis.
 8. Select the **Validate Excel Sheets** tool (created in Step 5.5 below)
    - If the tool is not yet created, add a placeholder message node and return here after Step 5.5
 9. **Map the inputs** on the Action node:
-   - `uploadedFiles` → `Topic.uploadedFiles` (the file from the Question node)
+   - `uploadedFiles` → For file data, click the input field, select **Formula** (fx), and enter the following Power Fx expression:
+     ```
+     { contentBytes: Topic.uploadedFiles.Content, name: Topic.uploadedFiles.Name }
+     ```
+     > **Note:** `Topic.uploadedFiles` is a File record from the Question node. The tool's `uploadedFiles` input is also a File (record) type, so you must map the record's `Content` and `Name` properties explicitly using the Power Fx expression above. This follows the same pattern used for the Handle File Upload flow mapping in Step 5.3.
 10. **Store the outputs** in topic variables:
-    - `sheetNames` → `Topic.detectedSheets`
-    - `sheetCount` → `Topic.sheetCount`
+    - `fileName` → `Topic.detectedFileName`
+    - `blobPath` → `Topic.blobPath`
     - `status` → `Topic.validationStatus`
 
 11. Click the **+** (Add node) button below the tool call
 12. Select **Send a message**
-13. Enter the following GPT-4.1 model analysis prompt:
+13. Enter the following confirmation message:
 
 ```
-I have detected the following sheets in the uploaded file:
-{Topic.detectedSheets}
+📂 **File received:** {Topic.detectedFileName}
+🔍 **Status:** {Topic.validationStatus}
 
-Compare these against the REQUIRED sheets listed in your SHEET VERIFICATION instructions.
-Report a compliance summary to the user using this format:
+The GPT-4.1 model will now analyze the uploaded file content to identify which sheets are present and verify compliance.
 
-📋 **Sheet Compliance Report:**
-- For each required sheet (ApplicationInventory, SQL Server, WebApplications):
-  show ✅ if PRESENT or ❌ if MISSING
-- For the optional Database sheet: show ℹ️ if present
-- For any unexpected sheets: show ⚠️
-
-Then state which processing steps will proceed and which will be skipped.
+Please review the compliance report below.
 ```
 
-> **How it works:** The "Validate Excel Sheets" tool (a lightweight Power Automate flow) reads sheet names from the file and returns them to the agent. The GPT-4.1 model then applies its SHEET VERIFICATION instructions to compare the sheet list against expected names and generates a compliance report. This keeps the intelligence in the GPT-4.1 model while Power Automate handles only the mechanical task of reading sheet metadata.
+> **How it works:** The "Validate Excel Sheets" tool (a Power Automate flow) saves the uploaded file to Azure Blob Storage and returns metadata (`fileName`, `blobPath`, `status`). It does **not** parse sheet names — that analysis is performed by the GPT-4.1 model, which has access to the uploaded file content through the Copilot Studio file upload mechanism. The model applies its SHEET VERIFICATION instructions (configured in Step 2) to identify which required sheets (ApplicationInventory, SQL Server, WebApplications) are present and generates a compliance report.
+>
+> **Important — Populating `Topic.detectedSheets` for conditional branching (Part C):**
+> The Validate Excel Sheets flow returns `fileName`, `blobPath`, and `status` — it does **not** return sheet names. However, Part C's conditional branching (steps 23–28 below) requires `Topic.detectedSheets` to contain the sheet names found in the file.
+>
+> To bridge this gap, you have two options:
+> 1. **Extend the flow (recommended for conditional branching):** Add an Azure Function action to the Validate Excel Sheets flow that reads the blob from storage, parses the Excel file's sheet names (using a library such as ClosedXML or openpyxl), and returns them as a comma-separated string. Add a `sheetNames` output (Type: Text) to the **Respond to the agent** action and map it to `Topic.detectedSheets` in step 10 above. See the "Alternative — Azure Function fallback" note in Step 5.5.3 for guidance.
+> 2. **Skip conditional branching:** If all uploaded files are expected to contain all three required sheets, you can remove the per-sheet conditions in Part C and always redirect to all three processing topics. The GPT-4.1 model will report any missing data during analysis.
 
 14. Click the **+** (Add node) button below the GPT-4.1 model analysis message
 15. Select **Add a condition**
@@ -988,6 +992,8 @@ Then state which processing steps will proceed and which will be skipped.
 After file upload and sheet verification, the agent coordinates processing by redirecting to each analysis topic **only for sheets that passed compliance**. Each topic (Agent 2, 3, 4) calls its own data extraction tool, then the GPT-4.1 model analyzes the raw data and stores the results in a global variable.
 
 > **Note:** The processing topics referenced below are created in Agents 2, 3, and 4 respectively. You will add these redirect nodes after completing those agent sections. For now, you can add placeholder "Send a message" nodes or skip this part and return later.
+>
+> **Prerequisite:** The conditions below use `Topic.detectedSheets` (a comma-separated string of sheet names) to determine which processing topics to invoke. The default Validate Excel Sheets flow (Step 5.5) does **not** return sheet names — it returns `fileName`, `blobPath`, and `status`. To use this conditional branching, you must extend the flow to also return a `sheetNames` output as described in the guidance note in Step 4.1.7 Part A.1, step 13. If you have not extended the flow, skip the per-sheet conditions and redirect to all three processing topics unconditionally.
 
 23. Click the **+** (Add node) button below the Action node (still inside the TRUE branch)
 24. Select **Add a condition** to check for the ApplicationInventory sheet:
