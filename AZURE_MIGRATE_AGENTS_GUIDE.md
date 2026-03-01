@@ -461,8 +461,8 @@ SHEET VERIFICATION (GPT-4.1-based compliance check):
 After receiving the uploaded file, you MUST verify sheet compliance before processing:
 1. Call the "Validate Excel Sheets" tool to save the file and confirm it is ready for analysis
    (the tool returns fileName, blobPath, and status — it does NOT return sheet names)
-2. Analyze the uploaded file content to identify which sheets are present, then compare
-   against the REQUIRED sheets:
+2. Using the uploaded file content (available to you through the Copilot Studio file upload),
+   analyze the file to identify which sheets are present, then compare against the REQUIRED sheets:
    - ApplicationInventory (REQUIRED for application processing)
    - SQL Server (REQUIRED for SQL Server processing)
    - WebApplications (REQUIRED for web app processing)
@@ -957,7 +957,7 @@ Please review the compliance report below.
     - Operator: **is equal to**
     - Value: `"FileReady"`
 
-    > **Why "FileReady":** The Validate Excel Sheets flow (Step 5.5) always returns `status = "FileReady"` when the file is saved successfully to Azure Blob Storage. This condition confirms the file was stored and is ready for GPT-4.1 model analysis. If the flow fails (e.g., blob storage error), the status will not be `"FileReady"`, and the FALSE branch handles the error.
+    > **Why "FileReady":** The Validate Excel Sheets flow (Step 5.5) returns `status = "FileReady"` when the file is saved successfully to Azure Blob Storage. This condition confirms the file was stored and is ready for GPT-4.1 model analysis. If the flow fails (e.g., blob storage error), the flow itself errors and the `Topic.validationStatus` variable remains empty — the FALSE branch handles this case.
 
 17. **For the TRUE branch** (file saved successfully — proceed with processing):
 
@@ -984,8 +984,11 @@ Please review the compliance report below.
 
     The uploaded file could not be saved for processing.
     This may indicate a storage configuration issue.
+    Please verify: (1) the storage connection is configured correctly,
+    (2) the uploads container exists and is accessible, and
+    (3) any SAS tokens or credentials have not expired.
 
-    Please verify you are uploading an Azure Migrate export file and try again.
+    Please try uploading your Azure Migrate export file again.
     ```
     - Click **+** → **Redirect to another topic** → Select **Welcome and Upload Instructions**
 
@@ -1025,7 +1028,7 @@ After file upload and sheet verification, the agent coordinates processing by re
 > **Note:** After all analysis topics complete, you can optionally redirect to a report generation topic that calls the Agent 5 (Report Generator) flow to create the final Excel spreadsheet and provide a download link. See [Agent 5: Report Generator](#agent-5-report-generator) for details.
 
 > **Optional enhancement — Conditional branching per sheet:**
-> If you want the topic to skip processing for sheets that are not present in the file, you can add condition nodes that check `Topic.detectedSheets` (a comma-separated string of sheet names) before each redirect. This requires extending the Validate Excel Sheets flow (Step 5.5) to also return a `sheetNames` output — see the "Populating `Topic.detectedSheets`" guidance note in Part A.1 above. For each redirect, add a condition:
+> If you want the topic to skip processing for sheets that are not present in the file, you can add condition nodes that check `Topic.detectedSheets` (a comma-separated string of sheet names) before each redirect. This requires extending the Validate Excel Sheets flow (Step 5.5) to also return a `sheetNames` output — see the "Optional — Populating `Topic.detectedSheets` for conditional branching" guidance note in Part A.1 above. For each redirect, add a condition:
 > - Variable: `Topic.detectedSheets` | Operator: **contains** | Value: sheet name (e.g., `ApplicationInventory`)
 > - TRUE branch: Redirect to the processing topic
 > - FALSE branch: Send a message (e.g., `⏭️ Skipping Application Inventory processing — sheet not found in file.`)
