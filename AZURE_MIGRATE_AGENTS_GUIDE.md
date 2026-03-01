@@ -1651,7 +1651,7 @@ This lightweight flow reads the sheet names from the uploaded Excel file and ret
 1. Back in the Power Automate flow designer, click **+** → **Add an action**
 2. Search for `Excel Online` → Select **Run script** (Excel Online Business)
 3. Configure:
-   - **Location**: Select your Azure Blob Storage location or the OneDrive for Business location where the temp file is accessible — **PLACEHOLDER – replace with your location**
+   - **Location**: Select the location where the temp file is accessible — **PLACEHOLDER – replace with your location**
    - **Document Library**: Select the library where you saved the temp file
    - **File**: Use the file identifier from the "Save Temp File For Validation" action output
    - **Script**: Select `List Sheet Names` from the dropdown (the script you created in Step A2)
@@ -1880,7 +1880,7 @@ This action builds the full path to the uploaded file in blob storage, which is 
 
 ### Storage Analysis: In-Memory vs. Persistent Storage
 
-This section analyzes whether saving the uploaded file to persistent storage (Azure Blob or SharePoint) is necessary, and evaluates the feasibility of keeping file contents in memory and passing them between agents via global variables.
+This section analyzes whether saving the uploaded file to persistent storage (Azure Blob Storage) is necessary, and evaluates the feasibility of keeping file contents in memory and passing them between agents via global variables.
 
 #### Do You Need to Save the File to Storage?
 
@@ -1890,7 +1890,7 @@ This section analyzes whether saving the uploaded file to persistent storage (Az
 | **Large files** (Excel files > ~500 rows per sheet, or total data approaching Copilot Studio variable size limits) | **Yes** — global variables have size constraints | Save to storage; use file path for data extraction tools |
 | **Multi-session processing** (user uploads now, checks back later) | **Yes** — conversation state is lost between sessions | Save to storage with session ID for retrieval |
 | **Audit/compliance requirements** (need to retain uploaded source files) | **Yes** — need persistent record | Save to storage with appropriate retention policy |
-| **Final report download** | **Yes** — report must be stored to generate a download link | Save to Azure Blob or SharePoint for the report file only |
+| **Final report download** | **Yes** — report must be stored to generate a download link | Save to Azure Blob Storage for the report file only |
 
 #### In-Memory Data Passing: How It Works
 
@@ -1924,7 +1924,7 @@ In the **in-memory approach**, the uploaded file content is passed directly to d
 │ Report Generation (Agent 5 — ONLY step that needs persistent storage)                    │
 │                                                                                          │
 │  • Receives consolidated JSON from Global variables                                      │
-│  • Creates Excel report in Azure Blob or SharePoint                                      │
+│  • Creates Excel report in Azure Blob Storage                                            │
 │  • Returns download link to user                                                         │
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -1934,7 +1934,7 @@ In the **in-memory approach**, the uploaded file content is passed directly to d
 | Factor | In-Memory Approach | Persistent Storage Approach |
 |--------|-------------------|----------------------------|
 | **Copilot Studio variable size** | Global variables (String type) can hold JSON data. For typical Azure Migrate exports (100–500 rows per sheet), the serialized JSON fits well within limits. For very large exports (1000+ rows), test to confirm. | No size constraints — files stored externally |
-| **Power Automate usage** | Minimal — PA tools read data directly from file content passed as input. No storage read/write actions needed except for the final report. | PA tools read from storage (additional actions for blob/SharePoint read) |
+| **Power Automate usage** | Minimal — PA tools read data directly from file content passed as input. No storage read/write actions needed except for the final report. | PA tools read from storage (additional actions for blob read) |
 | **Latency** | Faster — no round-trip to storage | Slower — write to storage, then read back |
 | **Reliability** | Data is tied to conversation session. If the session drops, data is lost. | Data persists across sessions |
 | **LLM-first alignment** | ✅ Fully aligned — minimizes PA, keeps data in agent context | Requires more PA actions for storage I/O |
@@ -1943,7 +1943,7 @@ In the **in-memory approach**, the uploaded file content is passed directly to d
 
 > **For most use cases, use the hybrid approach:**
 > 1. **In-memory** for processing — pass file content directly to data extraction tools and keep consolidated results in global variables
-> 2. **Persistent storage only for the final report** — the generated Excel spreadsheet must be saved to Azure Blob or SharePoint to produce a download link
+> 2. **Persistent storage only for the final report** — the generated Excel spreadsheet must be saved to Azure Blob Storage to produce a download link
 > 3. **Optional: save to storage** if you need multi-session support, audit trails, or handle very large files
 
 To implement the in-memory approach, modify the data extraction tools (Agents 2, 3, 4) to accept file content as an input parameter instead of a file path. The Handle File Upload flow can be simplified to only generate a session ID and pass file content back to the agent, without writing to blob storage.
@@ -2029,24 +2029,15 @@ This minimal flow reads raw application inventory data from the uploaded file an
 
 #### Step 1.4: Add Excel Data Retrieval
 
-##### For SharePoint Storage:
-
 1. Click **+** below the trigger → **Add an action**
-2. Search for `Excel Online`
-3. Select **List rows present in a table** (under Excel Online (Business))
-4. If prompted, sign in to create the Excel Online connection
-5. Configure:
-   - **Location**: Select your SharePoint site
-   - **Document Library**: Select `Uploads` (or your upload library)
-   - **File**: Click **Dynamic content** → Select `filePath` from trigger
-   - **Table Name**: Type `ApplicationInventory`
-6. Rename to: `Get ApplicationInventory Rows`
-
-##### For Azure Blob Storage:
-
-1. Add **Azure Blob Storage** connector → **Get blob content (V2)**
-2. Then add a **Parse JSON** action to parse the CSV/Excel content
-3. Rename to: `Get ApplicationInventory Rows`
+2. Search for `Azure Blob Storage` → Select **Get blob content (V2)**
+3. Configure:
+   - **Storage account name or blob endpoint**: Select your Azure Storage Account connection — **PLACEHOLDER – replace with your account**
+   - **Container**: `uploads`
+   - **Blob**: Click **Dynamic content** → Select `filePath` from trigger
+4. Then add a **Parse JSON** action to parse the Excel content into rows
+5. Configure the Parse JSON to extract the `ApplicationInventory` sheet data
+6. Rename the final data action to: `Get ApplicationInventory Rows`
 
 #### Step 1.5: Return Data to Agent
 
@@ -2465,15 +2456,14 @@ This minimal flow reads raw SQL Server inventory data from the uploaded file and
 #### Step 1.4: Add Excel Data Retrieval
 
 1. Click **+** → **Add an action**
-2. Search for `Excel Online`
-3. Select **List rows present in a table** (Excel Online Business)
-4. If prompted, sign in to create the connection
-5. Configure:
-   - **Location**: Select your SharePoint site from the dropdown
-   - **Document Library**: Select `Uploads`
-   - **File**: Click **Dynamic content** → Select `filePath`
-   - **Table Name**: Type `SQLServer`
-6. Rename action to: `Get SQL Server Rows`
+2. Search for `Azure Blob Storage` → Select **Get blob content (V2)**
+3. Configure:
+   - **Storage account name or blob endpoint**: Select your Azure Storage Account connection — **PLACEHOLDER – replace with your account**
+   - **Container**: `uploads`
+   - **Blob**: Click **Dynamic content** → Select `filePath` from trigger
+4. Then add a **Parse JSON** action to parse the Excel content into rows
+5. Configure the Parse JSON to extract the `SQLServer` sheet data
+6. Rename the final data action to: `Get SQL Server Rows`
 
 #### Step 1.5: Return Data to Agent
 
@@ -2773,14 +2763,14 @@ This minimal flow reads raw web application inventory data from the uploaded fil
 #### Step 1.4: Add Excel Data Retrieval
 
 1. Click **+** → **Add an action**
-2. Search for `Excel Online`
-3. Select **List rows present in a table**
-4. Configure:
-   - **Location**: Select your SharePoint site
-   - **Document Library**: Select `Uploads`
-   - **File**: Click **Dynamic content** → Select `filePath`
-   - **Table Name**: Type `WebApplications`
-5. Rename to: `Get Web App Rows`
+2. Search for `Azure Blob Storage` → Select **Get blob content (V2)**
+3. Configure:
+   - **Storage account name or blob endpoint**: Select your Azure Storage Account connection — **PLACEHOLDER – replace with your account**
+   - **Container**: `uploads`
+   - **Blob**: Click **Dynamic content** → Select `filePath` from trigger
+4. Then add a **Parse JSON** action to parse the Excel content into rows
+5. Configure the Parse JSON to extract the `WebApplications` sheet data
+6. Rename the final data action to: `Get Web App Rows`
 
 #### Step 1.5: Return Data to Agent
 
@@ -3007,7 +2997,7 @@ The consolidated web application list has been stored and is ready for report ge
 ### Purpose
 Generate the final consolidated Excel spreadsheet with all unique applications, SQL Server instances, and web applications, and provide a download link to the user. This flow creates a professional multi-sheet Excel report.
 
-> **⚠️ Prerequisite**: Before configuring this flow, you must create an Excel template with predefined tables. See the [Creating the Excel Template](#creating-the-excel-template) section at the end of Agent 5 for detailed instructions. Upload the template to your SharePoint site (e.g., `/Templates/ReportTemplate.xlsx`) before proceeding.
+> **⚠️ Prerequisite**: Before configuring this flow, you must create an Excel template with predefined tables. See the [Creating the Excel Template](#creating-the-excel-template) section at the end of Agent 5 for detailed instructions. Upload the template to your Azure Blob Storage container (e.g., `templates/ReportTemplate.xlsx`) before proceeding.
 
 ---
 
@@ -3072,7 +3062,7 @@ Generate the final consolidated Excel spreadsheet with all unique applications, 
   ],
   "sessionId": "session-123-guid",
   "userEmail": "user@contoso.com",
-  "storageType": "SharePoint"
+  "storageType": "AzureBlob"
 }
 ```
 4. Click **Done**
@@ -3116,62 +3106,45 @@ Generate the final consolidated Excel spreadsheet with all unique applications, 
 
 ### Step 3: Create the Report Folder
 
-#### Step 3.1: Create Folder in SharePoint (For SharePoint Storage)
-
-1. Click **+** → **Add an action**
-2. Search for `SharePoint`
-3. Select **Create new folder**
-4. Configure:
-   - **Site Address**: Select your SharePoint site
-   - **List or Library**: Select `Reports`
-   - **Folder Path**: Type or use expression:
-   ```
-   /@{triggerBody()?['sessionId']}
-   ```
-5. Rename to: `Create Report Folder`
-
-**Note**: If the folder already exists, add a **Scope** with "Configure run after" set to continue on failure.
+> **Note:** Azure Blob Storage uses virtual folder paths within containers. There is no need to explicitly create folders — they are created automatically when a blob is uploaded with a path prefix.
 
 ---
 
 ### Step 4: Create the Excel File with Template
 
-#### Step 4.1: Option A - Create from Template (Recommended)
+#### Step 4.1: Option A - Copy Template from Blob Storage (Recommended)
 
-If you have a template Excel file:
+If you have a template Excel file in Azure Blob Storage:
 
 1. Click **+** → **Add an action**
-2. Search for `SharePoint`
-3. Select **Copy file**
-4. Configure:
-   - **Current Site Address**: Site with template
-   - **File to Copy**: `/Templates/ReportTemplate.xlsx`
-   - **Destination Site Address**: Your SharePoint site
-   - **Destination Folder**: `/Reports/@{triggerBody()?['sessionId']}`
-   - **If Another File is Already There**: **Replace**
-5. Rename to: `Copy Report Template`
+2. Search for `Azure Blob Storage` → Select **Get blob content (V2)**
+3. Configure:
+   - **Storage account name or blob endpoint**: Select your Azure Storage Account — **PLACEHOLDER – replace with your account**
+   - **Container**: `templates`
+   - **Blob**: `ReportTemplate.xlsx`
+4. Rename to: `Get Report Template`
 
-6. Click **+** → **Add an action**
-7. Select **Rename file** (SharePoint)
-8. Configure:
-   - **Site Address**: Your SharePoint site
-   - **File Identifier**: Use Dynamic content from Copy file
-   - **New Name**: `@{variables('reportFileName')}`
-9. Rename to: `Rename Report File`
+5. Click **+** → **Add an action**
+6. Search for `Azure Blob Storage` → Select **Create blob (V2)**
+7. Configure:
+   - **Storage account name or blob endpoint**: Select your Azure Storage Account
+   - **Container**: `reports`
+   - **Blob name**: Expression: `concat(triggerBody()?['sessionId'], '/', variables('reportFileName'))`
+   - **Blob content**: Click **Dynamic content** → Select **File Content** from "Get Report Template"
+8. Rename to: `Create Report File`
 
 #### Step 4.2: Option B - Create File Dynamically
 
 If creating from scratch:
 
 1. Click **+** → **Add an action**
-2. Search for `SharePoint`
-3. Select **Create file**
-4. Configure:
-   - **Site Address**: Your SharePoint site
-   - **Folder Path**: `/Reports/@{triggerBody()?['sessionId']}`
-   - **File Name**: `@{variables('reportFileName')}`
-   - **File Content**: Leave empty (we'll populate via Excel connector)
-5. Rename to: `Create Empty Report File`
+2. Search for `Azure Blob Storage` → Select **Create blob (V2)**
+3. Configure:
+   - **Storage account name or blob endpoint**: Select your Azure Storage Account — **PLACEHOLDER – replace with your account**
+   - **Container**: `reports`
+   - **Blob name**: Expression: `concat(triggerBody()?['sessionId'], '/', variables('reportFileName'))`
+   - **Blob content**: Leave empty (we'll populate via Excel connector)
+4. Rename to: `Create Empty Report File`
 
 **Note**: Creating Excel files from scratch requires additional setup. Using a template is recommended.
 
@@ -3199,7 +3172,7 @@ If creating from scratch:
 2. Search for `Excel Online (Business)`
 3. Select **Add a row into a table**
 4. Configure:
-   - **Location**: Select your SharePoint site
+   - **Location**: Select the location where the report file is stored — **PLACEHOLDER – replace with your location**
    - **Document Library**: `Reports`
    - **File**: `@{variables('reportFilePath')}`
    - **Table**: `UniqueApplications` (must exist in template)
@@ -3219,7 +3192,7 @@ If creating from scratch:
 1. Inside the loop, click **Add an action**
 2. Search for and select **Add a row into a table** (Excel Online Business)
 3. Configure:
-   - **Location**: Your SharePoint site
+   - **Location**: Select the location where the report file is stored — **PLACEHOLDER – replace with your location**
    - **Document Library**: `Reports`
    - **File**: `@{variables('reportFilePath')}`
    - **Table**: `UniqueApplications`
@@ -3247,7 +3220,7 @@ If creating from scratch:
 1. Inside the loop, click **Add an action**
 2. Select **Add a row into a table** (Excel Online Business)
 3. Configure:
-   - **Location**: Your SharePoint site
+   - **Location**: Select the location where the report file is stored — **PLACEHOLDER – replace with your location**
    - **Document Library**: `Reports`
    - **File**: `@{variables('reportFilePath')}`
    - **Table**: `UniqueSQLInstances`
@@ -3277,7 +3250,7 @@ If creating from scratch:
 1. Inside the loop, click **Add an action**
 2. Select **Add a row into a table** (Excel Online Business)
 3. Configure:
-   - **Location**: Your SharePoint site
+   - **Location**: Select the location where the report file is stored — **PLACEHOLDER – replace with your location**
    - **Document Library**: `Reports`
    - **File**: `@{variables('reportFilePath')}`
    - **Table**: `UniqueWebApps`
@@ -3294,36 +3267,19 @@ If creating from scratch:
 
 ### Step 9: Generate Download Link
 
-#### Step 9.1: Create Sharing Link
+#### Step 9.1: Generate SAS Download URL
 
 1. After all data loops, click **+** → **Add an action**
-2. Search for `SharePoint`
-3. Select **Create sharing link for a file or folder**
-4. Configure:
-   - **Site Address**: Your SharePoint site
-   - **Item Id**: Use expression to get file identifier:
-     - Click **Expression** → Type: This requires the file ID
-     - Alternative: Use **Get file metadata using path** first, then use that ID
-   - **Link Type**: Select **View**
-   - **Link Scope**: Select **People in your organization** (or appropriate scope)
-
-**Better Approach - Get File Metadata First**:
-
-1. Click **+** → **Add an action**
-2. Select **Get file metadata using path** (SharePoint)
+2. Search for `Azure Blob Storage` → Select **Create SAS URI by path (V2)**
 3. Configure:
-   - **Site Address**: Your SharePoint site
-   - **File Path**: `@{variables('reportFilePath')}`
-4. Rename to: `Get Report File Metadata`
+   - **Storage account name or blob endpoint**: Select your Azure Storage Account — **PLACEHOLDER – replace with your account**
+   - **Container**: `reports`
+   - **Blob path**: `@{variables('reportFilePath')}`
+   - **Permissions**: `Read`
+   - **Expiry time**: Expression: `addHours(utcNow(), 24)`
+4. Rename to: `Create Download Link`
 
-5. Click **+** → **Add an action**
-6. Select **Create sharing link for a file or folder**
-7. Configure:
-   - **Site Address**: Your SharePoint site
-   - **Item Id**: Click **Dynamic content** → Select **ItemId** from "Get Report File Metadata"
-   - **Link Type**: **View**
-   - **Link Scope**: **People in your organization**
-8. Rename to: `Create Download Link`
+> **Note:** The **Create SAS URI by path (V2)** action is a built-in Azure Blob Storage connector action in Power Automate that generates a time-limited, read-only SAS URL without custom code. The URL expires after 24 hours (configurable). If this action is not available in your environment, use an Azure Function or pre-configured SAS token (see Flow 2: Get Processing Status for alternatives).
 
 #### Step 9.2: Store the Download URL
 
@@ -3332,7 +3288,7 @@ If creating from scratch:
 3. Configure:
    - **Name**: `downloadUrl`
    - **Value**: Click **Dynamic content** → Select **Web URL** from "Create Download Link" output
-     - Or use expression: `body('Create_Download_Link')?['link']?['webUrl']`
+     - Or use expression: `coalesce(body('Create_Download_Link')?['WebUrl'], '')`
 4. Rename to: `Store Download URL`
 
 ---
@@ -3495,7 +3451,7 @@ If you have any questions, please contact your IT administrator.
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Create Report Folder (SharePoint)                                        │
+│ Create Report File (Azure Blob Storage)                                   │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -3526,7 +3482,7 @@ If you have any questions, please contact your IT administrator.
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
-│ Create Download Link (SharePoint Sharing)                                │
+│ Create Download Link (Azure Blob SAS URL)                                 │
 └─────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -3588,7 +3544,7 @@ For the Report Generator to work properly, you need an Excel template with prede
 
 6. **Save the template**:
    - Save as: `ReportTemplate.xlsx`
-   - Upload to SharePoint: `/Templates/ReportTemplate.xlsx`
+   - Upload to Azure Blob Storage: `templates/ReportTemplate.xlsx`
 
 ---
 
@@ -3637,7 +3593,7 @@ The Copilot agent orchestrates all processing through its topic flow. The agent'
   "sessionId": "session-123-guid",
   "userEmail": "user@contoso.com",
   "userId": "user-id-123",
-  "storageType": "SharePoint"
+  "storageType": "AzureBlob"
 }
 ```
 
@@ -4123,16 +4079,15 @@ In the **If no** branch:
 
 ### Summary of Required Flows
 
-| Flow Name | Type | Purpose | Storage Option |
-|-----------|------|---------|----------------|
-| `Azure Migrate Processing Orchestrator` | Parent/Main | Coordinates all processing (optional with LLM-first approach) | Both |
-| `Handle File Upload (Blob Storage)` | Agent Tool | Saves files to Azure Blob Storage and returns file path | Option A |
-| `Handle File Upload (SharePoint)` | Agent Tool | Saves files to SharePoint and returns file path | Option B |
-| `Read Application Inventory Data` | Agent Tool | Reads raw application data for LLM analysis | Both |
-| `Read SQL Server Inventory Data` | Agent Tool | Reads raw SQL Server data for LLM analysis | Both |
-| `Read Web App Inventory Data` | Agent Tool | Reads raw web app data for LLM analysis | Both |
-| `Generate Consolidated Report` | Child | Creates Excel and download link | Both |
-| `Get Processing Status` | Utility | Checks processing status | Both |
+| Flow Name | Type | Purpose |
+|-----------|------|---------|
+| `Azure Migrate Processing Orchestrator` | Parent/Main | Coordinates all processing (optional with LLM-first approach) |
+| `Handle File Upload (Blob Storage)` | Agent Tool | Saves files to Azure Blob Storage and returns file path |
+| `Read Application Inventory Data` | Agent Tool | Reads raw application data for LLM analysis |
+| `Read SQL Server Inventory Data` | Agent Tool | Reads raw SQL Server data for LLM analysis |
+| `Read Web App Inventory Data` | Agent Tool | Reads raw web app data for LLM analysis |
+| `Generate Consolidated Report` | Child | Creates Excel and download link |
+| `Get Processing Status` | Utility | Checks processing status |
 
 ### Understanding HTTP Action URI Values
 
@@ -4196,9 +4151,9 @@ Because each HTTP action's URI comes from the target flow's trigger, you must **
 
 ---
 
-### Flow 1A: File Upload Handler - Azure Blob Storage (Recommended)
+### Flow 1: File Upload Handler - Azure Blob Storage
 
-This flow stores uploaded files in Azure Blob Storage, which does NOT require users to have SharePoint or OneDrive access. This is the recommended approach for temporary file storage.
+This flow stores uploaded files in Azure Blob Storage for processing. All file manipulations use Azure Blob Storage as the storage backend.
 
 ```
 Name: Handle File Upload (Blob Storage)
@@ -4260,76 +4215,15 @@ Actions:
 3. Test the connection before saving
 
 **Benefits of Azure Blob Storage for Temporary Files:**
-- ✅ Users do NOT need SharePoint/OneDrive licenses or access
 - ✅ Automatic cleanup via lifecycle management policies
 - ✅ Cost-effective (pay only for storage used)
 - ✅ Better performance for large file uploads
 - ✅ Programmatic SAS token generation for secure, temporary access
-- ✅ No impact on SharePoint storage quotas
-
-### Flow 1B: File Upload Handler - SharePoint (Alternative)
-
-This flow stores uploaded files in SharePoint. Use this only if users have SharePoint access and you prefer SharePoint storage.
-
-```
-Name: Handle File Upload (SharePoint)
-Trigger: When an agent calls the flow (Run a flow from Copilot)
-Inputs: uploadedFiles (File), userId (Text), userEmail (Text)
-
-Steps:
-1. Generate unique session ID
-2. Create session folder in SharePoint
-3. Save uploaded file to SharePoint
-4. Build the file path for the stored file
-5. Return session ID, file path, status, and message to the agent
-```
-
-**Flow Definition - SharePoint:**
-
-```
-Trigger: When an agent calls the flow
-  Inputs:
-    - uploadedFiles (File)
-    - userId (Text)
-    - userEmail (Text)
-
-Actions:
-1. Compose
-   Rename to: Generate Session ID
-   Expression: guid()
-
-2. Create new folder (SharePoint connector)
-   (Do not rename — keep default connector name)
-   Site: Your SharePoint Site
-   Folder Path: /Uploads/@{outputs('Generate_Session_ID')}
-
-3. Create file (SharePoint connector)
-   (Do not rename — keep default connector name)
-   Site: Your Site
-   Folder: /Uploads/@{outputs('Generate_Session_ID')}
-   File Name: @{triggerBody()?['uploadedFiles']?['name']}
-   Content: @{triggerBody()?['uploadedFiles']?['contentBytes']}
-
-4. Compose
-   Rename to: Build File Path
-   Expression: concat('/Uploads/', outputs('Generate_Session_ID'), '/', triggerBody()?['uploadedFiles']?['name'])
-
-5. Respond to the agent:
-   - sessionId: @{coalesce(outputs('Generate_Session_ID'), '')}
-   - filePath: @{coalesce(outputs('Build_File_Path'), '')}
-   - status: "Processing"
-   - message: "File uploaded successfully. Processing has started."
-```
-
-> **Note:** In the LLM-first architecture, this flow does NOT call the Orchestrator. It stores the file and returns the `filePath` to the Copilot agent, which stores it in `Global.uploadedFilePath` and then coordinates processing by redirecting to each analysis topic (Agent 2, 3, 4) in sequence.
->
-> **Note:** Access trigger inputs using the names defined on the trigger: `triggerBody()?['uploadedFiles']`, `triggerBody()?['userEmail']`, `triggerBody()?['userId']`. Every output in the **Respond to the agent** action must have a value assigned — wrap dynamic expressions in `coalesce()` to return an empty string `''` when no value is available.
+- ✅ Users only interact through the Copilot chat interface
 
 ### Flow 2: Get Processing Status
 
-This flow checks for completed reports and returns the download URL. Configure based on your storage choice:
-
-#### Option A: Get Processing Status - Azure Blob Storage
+This flow checks for completed reports and returns the download URL.
 
 ```
 Name: Get Processing Status (Blob Storage)
@@ -4439,59 +4333,6 @@ For Azure Blob Storage, you have several options to generate secure download URL
 
 2. **Pre-configured SAS Token**: Use a service SAS with read-only permissions
 3. **Logic App with Managed Identity**: Use Azure Logic Apps with managed identity for blob access
-
-#### Option B: Get Processing Status - SharePoint
-
-```
-Name: Get Processing Status (SharePoint)
-Trigger: When an agent calls the flow (Run a flow from Copilot)
-Inputs: sessionId (Text)
-Outputs: processingStatus (Text), downloadUrl (Text), errorMessage (Text)
-
-Steps:
-1. Receive sessionId from the agent
-2. Check for completed report in SharePoint
-3. Return status, download URL, and error message to the agent
-```
-
-**Flow Definition - SharePoint:**
-
-```
-Trigger: When an agent calls the flow
-  Inputs:
-    - sessionId (Text)
-
-Actions:
-1. Get files (properties only) - SharePoint
-   Rename to: Get files (default name "Get_files_(properties_only)" is too long for expressions)
-   Site: Your Site
-   Library: Reports
-   Folder: /@{triggerBody()?['sessionId']}
-   Filter: endswith(Name, '.xlsx')
-
-2. Condition: Files exist?
-   If: length(body('Get_files')?['value']) > 0
-   
-   Yes branch:
-     3. Create sharing link for a file or folder (SharePoint)
-        Rename to: Create sharing link (default name is too long for expressions)
-        Site: Your Site
-        Item Id: @{first(body('Get_files')?['value'])?['Id']}
-        Link type: View
-     
-     4. Respond to the agent:
-        - processingStatus: "Complete"
-        - downloadUrl: @{coalesce(body('Create_sharing_link')?['link']?['webUrl'], '')}
-        - errorMessage: ""
-   
-   No branch:
-     5. Respond to the agent:
-        - processingStatus: "Processing"
-        - downloadUrl: ""
-        - errorMessage: ""
-```
-
-> **Important:** Both branches must include a **Respond to the agent** action with all output parameters populated. Wrap dynamic values in `coalesce()` to return a safe default when no value is available. The output parameter names (`processingStatus`, `downloadUrl`, `errorMessage`) must match those defined in Step 5.4.
 
 ### Connecting Flows to Copilot Studio
 
