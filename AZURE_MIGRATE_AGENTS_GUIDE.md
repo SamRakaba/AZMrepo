@@ -4276,6 +4276,8 @@ Output Mapping:
   - message     → (display in a Message node)
 ```
 
+> **Important:** Map `contentBytes` and `name` as **separate** Custom value fields. Do **not** wrap them in a single record expression like `{ contentBytes: First(System.Activity.Attachments).Content, name: First(System.Activity.Attachments).Name }` — that produces a Record type that does not match the File input. Similarly, do **not** wrap the result in square brackets `[...]` — that produces a Table type and causes an "incorrect type table" error. See Step 5.3 for full details.
+
 **For File Upload Flow (when added as a tool via Add a tool within a topic — appears as an Action node on the canvas):**
 ```
 Input Mapping:
