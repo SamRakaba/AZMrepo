@@ -249,12 +249,14 @@ Azure Blob Storage provides temporary file storage for uploaded files and persis
    Container: uploads
    Public access level: Private (no anonymous access)
    
-   Container: processing
+   Container: processing          (OPTIONAL — see note below)
    Public access level: Private (no anonymous access)
    
    Container: reports
    Public access level: Private (no anonymous access)
    ```
+
+   > **Note:** In the GPT-4.1-first in-memory architecture (recommended), the `processing` container is **optional**. Consolidated data is stored in global variables during the conversation session, and persistent storage is used only for the final report in the `reports` container. Create the `processing` container only if you need multi-session persistence or audit trails for intermediate data. See [Storage Analysis: In-Memory vs. Persistent Storage](#storage-analysis-in-memory-vs-persistent-storage) for details.
 
 3. **Set Up Folder Structure (Virtual Directories)**:
    ```
@@ -1856,7 +1858,7 @@ This action builds the full path to the uploaded file in blob storage, which is 
 - Supports programmatic access via SAS tokens
 - Users only interact through the Copilot chat interface
 
-### Step 4: Test the Upload Agent
+### Step 8: Test the Upload Agent
 
 1. Use the **Test bot** panel
 2. Verify:
@@ -2215,7 +2217,7 @@ unless the user explicitly asks for them.
 
 #### Step 4.4: Add Tool Call Node - Read Application Data
 
-1. Click **+** → **Call an action** → Select **Read Application Inventory Data** (your tool)
+1. Click **+** → **Add a tool** → Select **Read Application Inventory Data** (your tool)
 2. Map the inputs:
    - **filePath**: Select the file path variable from your upload workflow (e.g., `Global.uploadedFilePath`)
    - **sessionId**: Select the session ID variable (e.g., `Global.sessionId`)
@@ -2598,7 +2600,7 @@ unless the user explicitly asks for them.
 
 #### Step 4.4: Add Tool Call Node - Read SQL Data
 
-1. Click **+** → **Call an action** → Select **Read SQL Server Inventory Data**
+1. Click **+** → **Add a tool** → Select **Read SQL Server Inventory Data**
 2. Map inputs:
    - **filePath**: `Global.uploadedFilePath`
    - **sessionId**: `Global.sessionId`
@@ -2902,7 +2904,7 @@ unless the user explicitly asks for them.
 
 #### Step 4.4: Add Tool Call Node - Read Web App Data
 
-1. Click **+** → **Call an action** → Select **Read Web App Inventory Data**
+1. Click **+** → **Add a tool** → Select **Read Web App Inventory Data**
 2. Map inputs:
    - **filePath**: `Global.uploadedFilePath`
    - **sessionId**: `Global.sessionId`
@@ -3220,7 +3222,7 @@ The Power Automate flow receives the GPT-4.1-formatted data and writes it to Azu
 
 > **Note:** The **Create SAS URI by path (V2)** action is a built-in Azure Blob Storage connector action in Power Automate that generates a time-limited, read-only SAS URL without custom code. The URL expires after 24 hours (configurable). If this action is not available in your environment, use a pre-configured SAS token or Logic App with Managed Identity (see Flow 2: Get Processing Status for alternatives).
 
-#### Step 9.2: Store the Download URL
+#### Step 7.2: Store the Download URL
 
 1. Click **+** → **Add an action**
 2. Select **Set variable**
@@ -4272,6 +4274,7 @@ Input Mapping:
 
 Output Mapping:
   - sessionId   → Global.sessionId
+  - filePath    → Global.uploadedFilePath
   - status      → Global.uploadStatus
   - message     → (display in a Message node)
 ```
@@ -4285,6 +4288,7 @@ Input Mapping:
 
 Output Mapping:
   - sessionId   → Global.sessionId
+  - filePath    → Global.uploadedFilePath
   - status      → Global.uploadStatus
   - message     → (display in a Message node)
 ```
@@ -4445,11 +4449,7 @@ After processing the test files above:
 1. Verify exact sheet name in uploaded file
 2. Check for trailing spaces in sheet names
 3. Ensure data is formatted as a table in Excel
-4. Use dynamic sheet detection:
-   ```
-   Action: Get tables (Excel Online)
-   Then filter for matching table names
-   ```
+4. Use the GPT-4.1 model's sheet verification (Step 4.1.7 Part A.1) to detect available sheets dynamically — the model analyzes the uploaded file content and reports which sheets are present or missing
 
 #### Issue 3: Processing Timeout
 
@@ -4463,7 +4463,7 @@ After processing the test files above:
 3. Use chunked processing:
    ```
    - Process 1000 rows at a time
-   - Use pagination in Excel connector
+   - Use pagination in the Azure Blob Storage or Parse JSON actions
    ```
 
 #### Issue 4: Duplicate Detection Not Working
@@ -4612,10 +4612,11 @@ Scope: Error Handling
 ### Microsoft Documentation
 
 - [Microsoft Copilot Studio Documentation](https://learn.microsoft.com/en-us/microsoft-copilot-studio/)
+- [Add an Agent Flow to an Agent as a Tool](https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-use-flow)
 - [Power Automate Documentation](https://learn.microsoft.com/en-us/power-automate/)
 - [Azure Blob Storage Connector](https://learn.microsoft.com/en-us/connectors/azureblob/)
 - [Azure Blob Storage Documentation](https://learn.microsoft.com/en-us/azure/storage/blobs/)
-- [Excel Online Connector](https://learn.microsoft.com/en-us/connectors/excelonlinebusiness/)
+- [Excel Online Connector](https://learn.microsoft.com/en-us/connectors/excelonlinebusiness/) *(not used in core flows — included for reference if extending with SharePoint/OneDrive storage)*
 
 ### Azure Blob Storage Resources
 
