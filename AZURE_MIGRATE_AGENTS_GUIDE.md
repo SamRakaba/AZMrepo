@@ -920,16 +920,16 @@ I'll now verify the file structure before starting the AI-powered analysis.
 8. Select the **Validate Excel Sheets** tool (created in Step 5.5 below)
    - If the tool is not yet created, add a placeholder message node and return here after Step 5.5
 9. **Map the inputs** on the Action node:
-   - `uploadedFiles` → Click the input field and select `Topic.uploadedFiles` directly from the variable picker. Because both the topic variable and the tool input are of type **File**, Copilot Studio handles the mapping automatically — **no Power Fx formula is needed**.
+   - `uploadedFiles` → Click the input field and select `Topic.uploadedFiles` directly from the variable picker. Both the topic variable and the tool input are of type **File**, so direct selection should map them correctly — **no Power Fx formula is needed**.
      > **Important — Do not use a Power Fx formula here.** Common errors when using formulas for File-type inputs:
      > - `{ contentBytes: Topic.uploadedFiles.Content, name: Topic.uploadedFiles.Name }` → produces **"The '.' operator cannot be used on Blob values"** because File-type variables in Copilot Studio do not support dot-notation property access in Power Fx.
      > - `If(IsEmpty(System.Activity.Attachments), [], [{ contentBytes: ... }])` → produces **"incorrect type table"** because the square brackets `[...]` create a Table, not a File record.
      >
-     > The correct approach is to select the variable directly from the picker. This is the supported method for File-to-File type mapping within a topic.
+     > The correct approach is to select the variable directly from the picker. If your UI does not show `Topic.uploadedFiles` in the variable list, verify the variable was created with File type in Step 4.1.5.
 10. **Store the outputs** in topic variables — you must **create each variable** during output mapping since these variables do not exist yet:
-    - `fileName` → Click the output field, select **Create new**, type variable name: `detectedFileName`, set type to **Text**, click **Create**. The output maps to `Topic.detectedFileName`.
-    - `blobPath` → Click the output field, select **Create new**, type variable name: `blobPath`, set type to **Text**, click **Create**. The output maps to `Topic.blobPath`.
-    - `status` → Click the output field, select **Create new**, type variable name: `validationStatus`, set type to **Text**, click **Create**. The output maps to `Topic.validationStatus`.
+    - `fileName` → Click the output field, look for an option to create a new variable (e.g., **Create new**), type variable name: `detectedFileName`, set type to **Text**, and confirm. The output maps to `Topic.detectedFileName`.
+    - `blobPath` → Click the output field, create a new variable named: `blobPath`, set type to **Text**, and confirm. The output maps to `Topic.blobPath`.
+    - `status` → Click the output field, create a new variable named: `validationStatus`, set type to **Text**, and confirm. The output maps to `Topic.validationStatus`.
 
 11. Click the **+** (Add node) button below the tool call
 12. Select **Send a message**
@@ -1550,7 +1550,7 @@ The flow now appears in the agent's list of tools.
 1. Go to **Topics** → **Welcome and Upload Instructions**
 2. In the TRUE branch, locate the **Action** node (if created from a topic) or click the **+** (Add node) icon and select **Add a tool**, then choose **Handle File Upload - Azure Migrate**
 3. **Map the inputs** on the Action node:
-   - `uploadedFiles` → Click the input field and select `Topic.uploadedFiles` directly from the variable picker. Because both the topic variable (from the Question node in Step 4.1.5) and the tool input are of type **File**, Copilot Studio handles the mapping automatically — **no Power Fx formula is needed**.
+   - `uploadedFiles` → Click the input field and select `Topic.uploadedFiles` directly from the variable picker. Both the topic variable (from the Question node in Step 4.1.5) and the tool input are of type **File**, so direct selection should map them correctly — **no Power Fx formula is needed**.
      > **Important — Do not use a Power Fx formula for this input.** The expression `{ contentBytes: Topic.uploadedFiles.Content, name: Topic.uploadedFiles.Name }` will fail with **"The '.' operator cannot be used on Blob values"** because File-type variables do not support dot-notation property access in Power Fx. Select the variable directly from the picker instead.
    - `userId` → `System.User.Id` (System variable)
    - `userEmail` → `System.User.Email` (System variable)
@@ -1561,7 +1561,7 @@ The flow now appears in the agent's list of tools.
    - `message` → (display in a Message node below the Action node)
 5. Click **Save**
 
-> **Note:** If you added the flow as an **agent-level tool** (from the Tools page), configure inputs on the tool's **Details** page instead. Go to **Tools**, select the flow, and under **Inputs**, the File input is expanded into its individual fields (`contentBytes` and `name`). Use the **Custom value** option with these Power Fx formulas:
+> **Note:** If you added the flow as an **agent-level tool** (from the Tools page), configure inputs on the tool's **Details** page instead. Go to **Tools**, select the flow, and under **Inputs**, the File input should be expanded into its individual fields (`contentBytes` and `name`). Use the **Custom value** option with these Power Fx formulas:
 > - **contentBytes**: `First(System.Activity.Attachments).Content`
 > - **name**: `First(System.Activity.Attachments).Name`
 > - **userId**: `System.User.Id`
