@@ -919,13 +919,29 @@ I'll now verify the file structure before starting the AI-powered analysis.
 7. From the dropdown menu, select **Add a tool**
 8. Select the **Validate Excel Sheets** tool (created in Step 5.5 below)
    - If the tool is not yet created, add a placeholder message node and return here after Step 5.5
-9. **Map the inputs** on the Action node:
-   - `uploadedFiles` → Click the input field and select `Topic.uploadedFiles` directly from the variable picker. Both the topic variable and the tool input are of type **File**, so direct selection should map them correctly — **no Power Fx formula is needed**.
-     > **Important — Do not use a Power Fx formula here.** Common errors when using formulas for File-type inputs:
-     > - `{ contentBytes: Topic.uploadedFiles.Content, name: Topic.uploadedFiles.Name }` → produces **"The '.' operator cannot be used on Blob values"** because File-type variables in Copilot Studio do not support dot-notation property access in Power Fx.
-     > - `If(IsEmpty(System.Activity.Attachments), [], [{ contentBytes: ... }])` → produces **"incorrect type table"** because the square brackets `[...]` create a Table, not a File record.
-     >
-     > The correct approach is to select the variable directly from the picker. If your UI does not show `Topic.uploadedFiles` in the variable list, verify the variable was created with File type in Step 4.1.5.
+9. **Map the inputs** — the mapping method depends on how the tool was added:
+
+   **If you added the flow as an agent-level tool (from the Tools page — Step 5.5.6):**
+
+   When a flow is added as an agent-level tool, the File input (`uploadedFiles`) is decomposed into two separate sub-fields: `contentBytes` (Binary) and `name` (Text). You **cannot** map `Topic.uploadedFiles` (File/Blob type) directly — it will produce an "incorrect type" error because the File type does not match the decomposed sub-field types.
+
+   Configure the inputs on the tool's **Details** page (not on the Action node in the topic):
+   1. Go to **Tools** in the left navigation
+   2. Select **Validate Excel Sheets - Azure Migrate**
+   3. On the **Details** page, under **Inputs**, set each field using the **Custom value** option:
+      - `contentBytes` → `First(System.Activity.Attachments).Content`
+      - `name` → `First(System.Activity.Attachments).Name`
+   4. Click **Save**
+
+   > **Why `System.Activity.Attachments`?** Agent-level tools do not have direct access to topic-scoped variables like `Topic.uploadedFiles`. Instead, `System.Activity.Attachments` provides access to the files attached to the most recent user message. `First()` selects the first attachment, and `.Content` / `.Name` return its binary content and file name respectively. These properties work on attachment records but do **not** work on Topic File/Blob variables (which is why `Topic.uploadedFiles.Content` fails with "The '.' operator cannot be used on Blob values").
+   >
+   > **Important:** Map `contentBytes` and `name` as **separate** Custom value fields. Do **not** wrap them in a single record expression like `{ contentBytes: ..., name: ... }` — that produces a Record type that does not match the File input. Similarly, do **not** wrap the result in square brackets `[...]` — that produces a Table type and causes an "incorrect type table" error.
+
+   **If you added the flow as a topic-level tool (from within this topic via Add a tool):**
+
+   When the flow is added directly from the topic canvas (not pre-registered on the Tools page), the input appears as a single `uploadedFiles` field of type **File**. In this case:
+   - `uploadedFiles` → Click the input field and select `Topic.uploadedFiles` directly from the variable picker. Both the topic variable and the tool input are of type **File**, so direct selection maps them correctly — **no Power Fx formula is needed**.
+     > **Do not use a Power Fx formula for this input.** The expression `{ contentBytes: Topic.uploadedFiles.Content, name: Topic.uploadedFiles.Name }` will fail with **"The '.' operator cannot be used on Blob values"** because File-type variables do not support dot-notation property access in Power Fx. Select the variable directly from the picker instead. If your UI does not show `Topic.uploadedFiles` in the variable list, verify the variable was created with File type in Step 4.1.5.
 10. **Store the outputs** in topic variables — you must **create each variable** during output mapping since these variables do not exist yet:
     - `fileName` → Click the output field, look for an option to create a new variable (e.g., **Create new**), type variable name: `detectedFileName`, set type to **Text**, and confirm. The output maps to `Topic.detectedFileName`.
     - `blobPath` → Click the output field, create a new variable named: `blobPath`, set type to **Text**, and confirm. The output maps to `Topic.blobPath`.
@@ -1676,9 +1692,17 @@ Rather than calling an Azure Function, the flow extracts the file name and conte
 2. Click **+ Add a tool**
 3. Select **Validate Excel Sheets - Azure Migrate**
 4. Review:
-   - Input: `uploadedFiles` (File)
+   - Input: `uploadedFiles` (File) — this will appear as `contentBytes` and `name` sub-fields on the Details page
    - Outputs: `fileName` (Text), `blobPath` (Text), `status` (Text)
 5. Click **Add** to confirm
+6. On the tool's **Details** page, configure the **Inputs** — the File input is expanded into two sub-fields:
+   - `contentBytes` → Select **Custom value**, enter the Power Fx formula: `First(System.Activity.Attachments).Content`
+   - `name` → Select **Custom value**, enter the Power Fx formula: `First(System.Activity.Attachments).Name`
+7. Click **Save**
+
+> **Important:** On the Tools page, file inputs must be set using the **Custom value** (Power Fx formula) option — the **Dynamically fill with AI** option does not work for file inputs. Do **not** use `Topic.uploadedFiles` here — agent-level tool inputs do not have access to topic-scoped variables. The `System.Activity.Attachments` collection provides the files attached to the user's most recent message.
+>
+> **Do not** wrap `contentBytes` and `name` in a single record expression or in square brackets — see Part A.1 (Step 4.1.7) for details on common type errors.
 
 ##### Step 5.5.7: Verify Flow Diagram
 
@@ -4298,6 +4322,32 @@ Output Mapping:
   - processingStatus → Global.processingStatus
   - downloadUrl      → Global.downloadUrl
   - errorMessage     → Global.errorMessage
+```
+
+**For Validate Excel Sheets Flow (when added as a tool from the Tools page — agent-level):**
+
+> **Important:** On the Tools page, file inputs must be set using the **Custom value** (Power Fx formula) option — the **Dynamically fill with AI** option does not work for file inputs. Do not use `Topic.uploadedFiles` — agent-level tool inputs do not have access to topic-scoped variables.
+
+```
+Input Mapping (on the tool's Details page):
+  - contentBytes → First(System.Activity.Attachments).Content
+  - name         → First(System.Activity.Attachments).Name
+
+Output Mapping (on the Action node in the topic):
+  - fileName → Topic.detectedFileName  (create new — Text)
+  - blobPath → Topic.blobPath           (create new — Text)
+  - status   → Topic.validationStatus   (create new — Text)
+```
+
+**For Validate Excel Sheets Flow (when added as a tool via Add a tool within a topic — topic-level):**
+```
+Input Mapping (on the Action node):
+  - uploadedFiles → Select Topic.uploadedFiles directly from the variable picker (no formula needed — File-to-File type mapping is automatic)
+
+Output Mapping (on the Action node):
+  - fileName → Topic.detectedFileName  (create new — Text)
+  - blobPath → Topic.blobPath           (create new — Text)
+  - status   → Topic.validationStatus   (create new — Text)
 ```
 
 > **Important:** Every output parameter in the **Respond to the agent** action must have a value assigned. Leaving any output value blank causes a `FlowActionException` error with the message "output parameter missing from response data." Always assign a value — use `coalesce()` to wrap dynamic expressions (e.g., `coalesce(outputs('MyAction'), '')`) so a safe default is returned when an action produces no result. Use an empty string `""` for text outputs that may not have data yet.
