@@ -459,8 +459,10 @@ EXPECTED FILE FORMATS:
 
 SHEET VERIFICATION (GPT-4.1-based compliance check):
 After receiving the uploaded file, you MUST verify sheet compliance before processing:
-1. Call the "Validate Excel Sheets" tool to retrieve the list of sheet names in the file
-2. Compare the returned sheet names against the REQUIRED sheets:
+1. Call the "Validate Excel Sheets" tool to save the file and confirm it is ready for analysis
+   (the tool returns fileName, blobPath, and status — it does NOT return sheet names)
+2. Using the uploaded file content (available to you through the Copilot Studio file upload),
+   analyze the file to identify which sheets are present, then compare against the REQUIRED sheets:
    - ApplicationInventory (REQUIRED for application processing)
    - SQL Server (REQUIRED for SQL Server processing)
    - WebApplications (REQUIRED for web app processing)
@@ -943,34 +945,21 @@ Please review the compliance report below.
 
 > **How it works:** The "Validate Excel Sheets" tool (a Power Automate flow) saves the uploaded file to Azure Blob Storage and returns metadata (`fileName`, `blobPath`, `status`). It does **not** parse sheet names — that analysis is performed by the GPT-4.1 model, which has access to the uploaded file content through the Copilot Studio file upload mechanism. The model applies its SHEET VERIFICATION instructions (configured in Step 2) to identify which required sheets (ApplicationInventory, SQL Server, WebApplications) are present and generates a compliance report.
 >
-> **Important — Populating `Topic.detectedSheets` for conditional branching (Part C):**
-> The Validate Excel Sheets flow returns `fileName`, `blobPath`, and `status` — it does **not** return sheet names. However, Part C's conditional branching (steps 23–28 below) requires `Topic.detectedSheets` to contain the sheet names found in the file.
->
-> To bridge this gap, you have two options:
-> 1. **Extend the flow (recommended for conditional branching):** Add an Azure Function action to the Validate Excel Sheets flow that reads the blob from storage, parses the Excel file's sheet names (using a library such as ClosedXML or openpyxl), and returns them as a comma-separated string. Add a `sheetNames` output (Type: Text) to the **Respond to the agent** action and map it to `Topic.detectedSheets` in step 10 above. See the "Alternative — Azure Function fallback" note in Step 5.5.3 for guidance.
-> 2. **Skip conditional branching:** If all uploaded files are expected to contain all three required sheets, you can remove the per-sheet conditions in Part C and always redirect to all three processing topics. The GPT-4.1 model will report any missing data during analysis.
+> **Optional — Populating `Topic.detectedSheets` for conditional branching:**
+> By default, Part C below uses unconditional redirects to all three processing topics. If you want per-sheet conditional branching, you must extend the flow to also return sheet names:
+> 1. **Extend the flow:** Add an Azure Function action to the Validate Excel Sheets flow that reads the blob from storage, parses the Excel file's sheet names (using a library such as ClosedXML or openpyxl), and returns them as a comma-separated string. Add a `sheetNames` output (Type: Text) to the **Respond to the agent** action and map it to `Topic.detectedSheets` in step 10 above. See the "Alternative — Azure Function fallback" note in Step 5.5.3 for guidance.
+> 2. Then follow the "Optional enhancement — Conditional branching per sheet" note in Part C below to add condition nodes.
 
 14. Click the **+** (Add node) button below the GPT-4.1 model analysis message
 15. Select **Add a condition**
 16. Configure the condition:
     - Variable: `Topic.validationStatus`
     - Operator: **is equal to**
-    - Value: `"NoRequiredSheets"`
+    - Value: `"FileReady"`
 
-17. **For the TRUE branch** (no required sheets found):
-    - Click **+** → **Send a message**
-    - Enter:
-    ```
-    ❌ **File validation failed.**
+    > **Why "FileReady":** The Validate Excel Sheets flow (Step 5.5) returns `status = "FileReady"` when the file is saved successfully to Azure Blob Storage. This condition confirms the file was stored and is ready for GPT-4.1 model analysis. If the flow fails (e.g., blob storage error), the flow itself errors and the `Topic.validationStatus` variable remains empty — the FALSE branch handles this case.
 
-    The uploaded file does not contain any of the required sheets
-    (ApplicationInventory, SQL Server, or WebApplications).
-
-    Please verify you are uploading an Azure Migrate export file and try again.
-    ```
-    - Click **+** → **Redirect to another topic** → Select **Welcome and Upload Instructions**
-
-18. **For the FALSE branch** (at least one required sheet found — proceed with processing):
+17. **For the TRUE branch** (file saved successfully — proceed with processing):
 
 **Part B: Add a Power Automate Flow Call Node (File Upload)**
 
@@ -978,49 +967,48 @@ Please review the compliance report below.
 >
 > **Storage note:** File storage is used primarily for the final report generation. See the [Storage Analysis](#storage-analysis-in-memory-vs-persistent-storage) section below for guidance on when in-memory data passing can replace persistent storage.
 
-19. Click the **+** (Add node) button below the FALSE branch (still inside the TRUE branch)
-20. From the dropdown menu, select **Add a tool**
-21. You have two options in the tool selection panel:
+18. Click the **+** (Add node) button below the TRUE branch (still inside the outer TRUE branch)
+19. From the dropdown menu, select **Add a tool**
+20. You have two options in the tool selection panel:
    - **New Agent flow** – Select this to create a new agent flow template with the required trigger and response action already configured. You will build the processing logic in Step 5. For now, click **Publish** to save the empty template, then click **Go back to agent**.
    - **Select an existing flow** – If you have already created and published the **Handle File Upload – Azure Migrate** flow (from Step 5), select it here.
-22. If you created a new agent flow template and returned to the topic, an **Action** node will appear in the canvas — this is expected and will be fully configured in Step 5.
+21. If you created a new agent flow template and returned to the topic, an **Action** node will appear in the canvas — this is expected and will be fully configured in Step 5.
 
 > **Tip:** If you prefer to skip adding the flow tool for now, you can come back after completing Step 5. Locate the TRUE branch in this topic, click **+**, select **Add a tool**, and choose the flow to add and configure it at that point.
 
-**Part C: Add Topic Redirects for GPT-4.1-Based Processing Sequence (Conditional on Sheet Compliance)**
+22. **For the FALSE branch** (file save failed — error handling):
+    - Click **+** → **Send a message**
+    - Enter:
+    ```
+    ❌ **File validation failed.**
 
-After file upload and sheet verification, the agent coordinates processing by redirecting to each analysis topic **only for sheets that passed compliance**. Each topic (Agent 2, 3, 4) calls its own data extraction tool, then the GPT-4.1 model analyzes the raw data and stores the results in a global variable.
+    The uploaded file could not be saved for processing.
+    This may indicate a storage configuration issue.
+    Please verify: (1) the storage connection is configured correctly,
+    (2) the uploads container exists and is accessible, and
+    (3) any SAS tokens or credentials have not expired.
+
+    Please try uploading your Azure Migrate export file again.
+    ```
+    - Click **+** → **Redirect to another topic** → Select **Welcome and Upload Instructions**
+
+**Part C: Add Topic Redirects for GPT-4.1-Based Processing Sequence**
+
+After file upload and sheet verification, the agent coordinates processing by redirecting to each analysis topic in sequence. The GPT-4.1 model handles any missing-sheet scenarios conversationally during each topic's analysis phase.
 
 > **Note:** The processing topics referenced below are created in Agents 2, 3, and 4 respectively. You will add these redirect nodes after completing those agent sections. For now, you can add placeholder "Send a message" nodes or skip this part and return later.
->
-> **Prerequisite:** The conditions below use `Topic.detectedSheets` (a comma-separated string of sheet names) to determine which processing topics to invoke. The default Validate Excel Sheets flow (Step 5.5) does **not** return sheet names — it returns `fileName`, `blobPath`, and `status`. To use this conditional branching, you must extend the flow to also return a `sheetNames` output as described in the "Populating `Topic.detectedSheets`" guidance note in Step 4.1.7 Part A.1. If you have not extended the flow, skip the per-sheet conditions and redirect to all three processing topics unconditionally.
 
 23. Click the **+** (Add node) button below the Action node (still inside the TRUE branch)
-24. Select **Add a condition** to check for the ApplicationInventory sheet:
-    - Click on **Select a variable** → Select `Topic.detectedSheets`
-    - Click on the **operator dropdown** → Select **contains**
-    - In the value field, type: `ApplicationInventory`
-    - **TRUE branch**: Click **+** → Select **Redirect to another topic** → Select **Process Application Inventory** (created in Agent 2, Step 4)
-      - This topic calls the "Read Application Inventory Data" tool, then the GPT-4.1 model analyzes the data, stores results in `Global.consolidatedApplications`, and generates a CSV dedup summary
-    - **FALSE branch**: Click **+** → Select **Send a message** → Type: `⏭️ Skipping Application Inventory processing — sheet not found in file.`
+24. Select **Redirect to another topic** → Select **Process Application Inventory** (created in Agent 2, Step 4)
+    - This topic calls the "Read Application Inventory Data" tool, then the GPT-4.1 model analyzes the data, stores results in `Global.consolidatedApplications`, and generates a CSV dedup summary
 
 25. Click the **+** (Add node) button below the previous step
-26. Select **Add a condition** to check for the SQL Server sheet:
-    - Click on **Select a variable** → Select `Topic.detectedSheets`
-    - Click on the **operator dropdown** → Select **contains**
-    - In the value field, type: `SQL Server`
-    - **TRUE branch**: Click **+** → Select **Redirect to another topic** → Select **Process SQL Server Inventory** (created in Agent 3, Step 4)
-      - This topic calls the "Read SQL Server Inventory Data" tool, then the GPT-4.1 model analyzes the data and stores results in `Global.consolidatedSQLInstances`
-    - **FALSE branch**: Click **+** → Select **Send a message** → Type: `⏭️ Skipping SQL Server Inventory processing — sheet not found in file.`
+26. Select **Redirect to another topic** → Select **Process SQL Server Inventory** (created in Agent 3, Step 4)
+    - This topic calls the "Read SQL Server Inventory Data" tool, then the GPT-4.1 model analyzes the data and stores results in `Global.consolidatedSQLInstances`
 
 27. Click the **+** (Add node) button below the previous step
-28. Select **Add a condition** to check for the WebApplications sheet:
-    - Click on **Select a variable** → Select `Topic.detectedSheets`
-    - Click on the **operator dropdown** → Select **contains**
-    - In the value field, type: `WebApplications`
-    - **TRUE branch**: Click **+** → Select **Redirect to another topic** → Select **Process Web App Inventory** (created in Agent 4, Step 4)
-      - This topic calls the "Read Web App Inventory Data" tool, then the GPT-4.1 model analyzes the data and stores results in `Global.consolidatedWebApps`
-    - **FALSE branch**: Click **+** → Select **Send a message** → Type: `⏭️ Skipping Web App Inventory processing — sheet not found in file.`
+28. Select **Redirect to another topic** → Select **Process Web App Inventory** (created in Agent 4, Step 4)
+    - This topic calls the "Read Web App Inventory Data" tool, then the GPT-4.1 model analyzes the data and stores results in `Global.consolidatedWebApps`
 
 29. Click the **+** (Add node) button below the previous step
 30. Select **Send a message**
@@ -1029,7 +1017,7 @@ After file upload and sheet verification, the agent coordinates processing by re
 ```
 ✅ **All applicable inventory analysis complete!**
 
-📊 Your consolidated data is ready for the sheets that were present:
+📊 Your consolidated data is ready:
 • Application inventory — analyzed and deduplicated (CSV summary available)
 • SQL Server instances — consolidated and grouped by version
 • Web applications — identified and consolidated
@@ -1038,6 +1026,14 @@ After file upload and sheet verification, the agent coordinates processing by re
 ```
 
 > **Note:** After all analysis topics complete, you can optionally redirect to a report generation topic that calls the Agent 5 (Report Generator) flow to create the final Excel spreadsheet and provide a download link. See [Agent 5: Report Generator](#agent-5-report-generator) for details.
+
+> **Optional enhancement — Conditional branching per sheet:**
+> If you want the topic to skip processing for sheets that are not present in the file, you can add condition nodes that check `Topic.detectedSheets` (a comma-separated string of sheet names) before each redirect. This requires extending the Validate Excel Sheets flow (Step 5.5) to also return a `sheetNames` output — see the "Optional — Populating `Topic.detectedSheets` for conditional branching" guidance note in Part A.1 above. For each redirect, add a condition:
+> - Variable: `Topic.detectedSheets` | Operator: **contains** | Value: sheet name (e.g., `ApplicationInventory`)
+> - TRUE branch: Redirect to the processing topic
+> - FALSE branch: Send a message (e.g., `⏭️ Skipping Application Inventory processing — sheet not found in file.`)
+>
+> If you have not extended the flow, use the unconditional redirects above — the GPT-4.1 model will report any missing data during each topic's analysis.
 
 ##### Step 4.1.8: Configure the FALSE Branch (No Files Uploaded)
 
@@ -1607,9 +1603,9 @@ The flow now appears in the agent's list of tools.
 
 #### Step 5.5: Create the Validate Excel Sheets Tool (Power Automate Flow)
 
-This lightweight flow reads the sheet names from the uploaded Excel file and returns them to the agent. The GPT-4.1 model then performs the compliance check — Power Automate handles only the mechanical task of reading sheet metadata.
+This lightweight flow saves the uploaded Excel file to Azure Blob Storage and returns file metadata (`fileName`, `blobPath`, `status`) to the agent. The GPT-4.1 model then performs the sheet compliance check using the file content it receives through the Copilot Studio file upload mechanism — Power Automate handles only the mechanical task of storing the file.
 
-> **Design principle:** This tool follows the GPT-4.1-first approach — it returns raw metadata (sheet names), and the GPT-4.1 model applies the compliance logic from its instructions. This avoids encoding business rules in Power Automate and keeps the intelligence in the agent.
+> **Design principle:** This tool follows the GPT-4.1-first approach — it stores the file and returns metadata (`fileName`, `blobPath`, `status`), and the GPT-4.1 model applies the compliance logic from its instructions (see Step 2 — SHEET VERIFICATION section). This avoids encoding business rules in Power Automate and keeps the intelligence in the agent.
 
 ##### Step 5.5.1: Create the Flow
 
@@ -1627,7 +1623,7 @@ This lightweight flow reads the sheet names from the uploaded Excel file and ret
    - **Name**: `uploadedFiles`
    - **Description**: `The uploaded Azure Migrate Excel file`
 
-##### Step 5.5.3: Add Action to List Sheet Names
+##### Step 5.5.3: Add Actions to Save File and Extract Metadata
 
 > **Important prerequisite:** The Excel Online (Business) connector's **Run script** action requires the file to be in a SharePoint or OneDrive location, which is not used in this solution. Since uploaded files are stored in Azure Blob Storage, we use the **GPT-4.1 model** to analyze the file content and extract sheet names directly — no Azure Functions required.
 
